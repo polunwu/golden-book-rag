@@ -423,9 +423,56 @@ Improves context coherence significantly.
 
 ## Step 1
 
+Implement:
+
+```text
+PDF → text
+```
+
+Start with:
+
+- PyMuPDF
+- extract text
+- inspect layout
+- print results
+
+---
+
+## Step 2
+
+Implement:
+
+```text
+text → chunks
+```
+
+Start with:
+
+- heading detection
+- section_path
+- token count
+
+---
+
+## Step 3
+
+Implement:
+
+```text
+chunks → embeddings
+```
+
+Verify:
+
+- embedding pipeline
+- similarity quality
+
+---
+
+## Step 4
+
 Set up:
 
-- FastAPI
 - Postgres
 - pgvector
 
@@ -438,37 +485,25 @@ can run similarity search
 
 ---
 
-## Step 2
-
-Implement:
-
-```text
-PDF → text
-```
-
----
-
-## Step 3
-
-Implement:
-
-```text
-text → chunks
-```
-
----
-
-## Step 4
-
-Implement:
-
-```text
-chunks → embeddings
-```
-
----
-
 ## Step 5
+
+Implement:
+
+```text
+FastAPI shell + upload API
+```
+
+Start with a thin API wrapper around the working pipeline:
+
+- POST /books/upload
+- GET /books/:id
+- GET /books/:id/chunks
+
+Keep parsing, chunking, and embedding services runnable outside FastAPI.
+
+---
+
+## Step 6
 
 Implement:
 
@@ -478,7 +513,7 @@ query → retrieval
 
 ---
 
-## Step 6
+## Step 7
 
 Implement:
 
