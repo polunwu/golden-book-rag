@@ -1,5 +1,7 @@
 # 1. Datastructure about hierarchical retrieval
 
+Archived: merged into `bookrag_mvp_architecture.md`.
+
 ## Not Good: Fixed section fields
 
 Because maybe it won't fit other bookks
@@ -128,5 +130,7 @@ CREATE TABLE retrieval_eval_results (
 ```
 
 # 4. Use Fast API instead
+
+Archived: merged into `bookrag_mvp_architecture.md`.
 
 FastAPI is recommended for the BookRAG MVP because its typed API design, built-in validation, automatic documentation, and async support make it a better fit for modern AI/RAG backend architectures than Flask.
