@@ -4,7 +4,7 @@ from typing import TypeAlias, TypedDict, cast
 import pymupdf
 
 
-TocEntry: TypeAlias = list[int | str]
+TocEntry: TypeAlias = tuple[int, str, int]
 Toc: TypeAlias = list[TocEntry]
 
 
@@ -32,19 +32,6 @@ def extract_pdf_metadata(doc: pymupdf.Document) -> PdfMetadata:
         "pdf_pages": doc.page_count,
         "toc": cast(Toc, doc.get_toc()),
     }
-
-
-def print_pdf_summary(doc: pymupdf.Document) -> None:
-    metadata = extract_pdf_metadata(doc)
-    toc = metadata["toc"]
-    print(f"PDF: {metadata['path']}")
-    print(f"Title: {metadata['title']}")
-    print(f"Author: {metadata['author']}")
-    print(f"PDF pages: {metadata['pdf_pages']}")
-    print(f"TOC items length: {len(toc)}")
-    print("TOC items:")
-    for level, title, page in toc:
-        print(f"level={level} page={page} title={title}")
 
 
 def extract_page_text(doc: pymupdf.Document, pdf_page_number: int) -> str:

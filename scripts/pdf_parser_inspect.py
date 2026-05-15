@@ -1,16 +1,28 @@
-import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
 
-from services.pdf_parser import extract_page_text, open_pdf, print_pdf_summary
+import pymupdf
+
+from services.pdf_parser import extract_page_text, extract_pdf_metadata, open_pdf
 
 
 PDF_PATH = ROOT_DIR / "temp/books/AI_ENGINEERING_BUILDING.pdf"
 PDF_PAGE_NUMBERS = [1, 7, 25, 200]
 SAMPLE_CHARS = 500
+
+
+def print_pdf_summary(doc: pymupdf.Document) -> None:
+    metadata = extract_pdf_metadata(doc)
+    toc = metadata["toc"]
+    print(f"PDF: {metadata['path']}")
+    print(f"Title: {metadata['title']}")
+    print(f"Author: {metadata['author']}")
+    print(f"PDF pages: {metadata['pdf_pages']}")
+    print(f"TOC items length: {len(toc)}")
+    print("TOC items:")
+    for level, title, page in toc:
+        print(f"level={level} page={page} title={title}")
 
 
 def main() -> None:
