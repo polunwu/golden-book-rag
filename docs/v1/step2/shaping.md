@@ -6,49 +6,56 @@ shaping: true
 
 ## Requirements (R)
 
-| ID  | Requirement                                                                                           | Status    |
-| --- | ----------------------------------------------------------------------------------------------------- | --------- |
-| R0  | Produce text chunks using fixed-size sliding window (500 chars, 50 chars overlap)                     | Core goal |
-| R1  | Each chunk has `page_start` and `page_end` (physical PDF page numbers)                                | Must-have |
-| R2  | Each chunk has `section_path` (TEXT[]), `section_title` (TEXT), `section_level` (INT) from TOC       | Must-have |
-| R3  | Each chunk has `chunk_index` (sequential order in book)                                               | Must-have |
-| R4  | Chunks before first TOC entry have `section_path=[]`, `section_title=None`, `section_level=None`      | Must-have |
-| R5  | Keep Step 2 independent from DB, embeddings, FastAPI, frontend                                        | Must-have |
-| R6  | Output is human-readable / inspectable (print sample chunks)                                          | Must-have |
-| R7  | Expose `chunk_pdf(doc) -> list[Chunk]` in `services/chunker.py` for Step 3                            | Must-have |
-| R8  | Persist chunks to JSON file so Step 3 can load them before DB exists                                  | Must-have |
+| ID  | Requirement                                                                                                                          | Status    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------ | --------- |
+| R0  | Produce text chunks targeting ~500 chars per chunk while respecting paragraph and sentence boundaries (no mid-word/mid-sentence cuts) | Core goal |
+| R1  | Each chunk has `page_start` and `page_end` (physical PDF page numbers)                                                               | Must-have |
+| R2  | Each chunk has `section_path` (TEXT[]), `section_title` (TEXT), `section_level` (INT) from TOC                                       | Must-have |
+| R3  | Each chunk has `chunk_index` (sequential order in book)                                                                              | Must-have |
+| R4  | Chunks before first TOC entry have `section_path=[]`, `section_title=None`, `section_level=None`                                     | Must-have |
+| R5  | Keep Step 2 independent from DB, embeddings, FastAPI, frontend                                                                       | Must-have |
+| R6  | Output is human-readable / inspectable (print sample chunks)                                                                         | Must-have |
+| R7  | Expose `chunk_pdf(doc) -> list[Chunk]` in `services/chunker.py` for Step 3                                                           | Must-have |
+| R8  | Persist chunks to JSON file so Step 3 can load them before DB exists                                                                 | Must-have |
+| R9  | Maintain ~50 char overlap by carrying forward the trailing sentence/block                                                            | Must-have |
 
-## A: Concatenate full text → sliding window → annotate with TOC → save JSON
+## A: Concatenate full text → fixed-size sliding window (rejected)
 
-| Part | Mechanism                                                                                                                                                           |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1   | Extract all pages with `extract_page_text`; concatenate into one string; build `page_offsets: list[(char_start, char_end, pdf_page)]`                               |
-| A2   | Build TOC section map from `doc.get_toc()`; for page P, binary-search to find active entry per level; compose `section_path`, `section_title`, `section_level`; return `[]`/`None`/`None` if before first TOC entry |
-| A3   | Slide window over full text: window=500, step=450                                                                                                                   |
-| A4   | Per chunk: resolve `page_start`/`page_end` from `page_offsets`; resolve section fields from TOC map at `page_start`                                                 |
-| A5   | `chunk_index` = sequential 0-based int                                                                                                                              |
-| A6   | `Chunk` TypedDict: `text, page_start, page_end, section_path, section_title, section_level, chunk_index`                                                            |
-| A7   | `chunk_pdf(doc) -> list[Chunk]` in `services/chunker.py`                                                                                                            |
-| A8   | `save_chunks(chunks, path)` writes JSON; `load_chunks(path) -> list[Chunk]` reads it — both in `services/chunker.py`                                                |
-| A9   | Debug script: run chunker on sample PDF, save to `temp/chunks.json`, print sample                                                                                   |
+Fails R0 because the fixed window cuts mid-sentence and mid-word.
+
+## B: Block-aware accumulation with sentence fallback
+
+| Part | Mechanism                                                                                                                                                                                |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1   | For each page, call `page.get_text("blocks")` → PyMuPDF returns paragraph-like blocks with bbox + text; record `(block_text, pdf_page)` list across all pages                            |
+| B2   | For any block whose text exceeds `CHUNK_SIZE`, split at sentence boundaries (regex on `(?<=[.!?])\s+`) then fallback to hard split if still too long; each fragment inherits page number |
+| B3   | Greedy pack: accumulate fragments into `current_chunk` buffer until adding next fragment would exceed `CHUNK_SIZE`; emit chunk, start next by carrying trailing fragments summing to ~`OVERLAP` chars |
+| B4   | Per chunk: `page_start` = page of first fragment, `page_end` = page of last fragment                                                                                                     |
+| B5   | Section lookup: build TOC section map from `doc.get_toc()`; for `page_start`, return `(section_path, section_title, section_level)` or `([], None, None)` if before first TOC entry      |
+| B6   | `chunk_index` = sequential 0-based int                                                                                                                                                   |
+| B7   | `Chunk` TypedDict: `text, page_start, page_end, section_path, section_title, section_level, chunk_index`                                                                                 |
+| B8   | `chunk_pdf(doc) -> list[Chunk]` in `services/chunker.py`                                                                                                                                 |
+| B9   | `save_chunks(chunks, path)` writes JSON; `load_chunks(path) -> list[Chunk]` reads it                                                                                                     |
+| B10  | Debug script: run chunker on sample PDF, save to `temp/chunks.json`, print sample                                                                                                        |
 
 ## Fit Check
 
-| Req | Requirement                                                                                     | Status    | A   |
-| --- | ----------------------------------------------------------------------------------------------- | --------- | --- |
-| R0  | Produce text chunks using fixed-size sliding window (500 chars, 50 chars overlap)               | Core goal | ✅  |
-| R1  | Each chunk has `page_start` and `page_end`                                                      | Must-have | ✅  |
-| R2  | Each chunk has `section_path`, `section_title`, `section_level` from TOC                        | Must-have | ✅  |
-| R3  | Each chunk has `chunk_index`                                                                    | Must-have | ✅  |
-| R4  | Pre-TOC chunks return null/empty section fields                                                 | Must-have | ✅  |
-| R5  | Independent from DB, embeddings, FastAPI, frontend                                              | Must-have | ✅  |
-| R6  | Human-readable / inspectable output                                                             | Must-have | ✅  |
-| R7  | `chunk_pdf(doc) -> list[Chunk]` in `services/chunker.py`                                        | Must-have | ✅  |
-| R8  | Persist chunks to JSON for Step 3                                                               | Must-have | ✅  |
+| Req | Requirement                                                                       | Status    | A   | B   |
+| --- | --------------------------------------------------------------------------------- | --------- | --- | --- |
+| R0  | ~500 char chunks respecting paragraph/sentence boundaries                         | Core goal | ❌  | ✅  |
+| R1  | `page_start` / `page_end`                                                         | Must-have | ✅  | ✅  |
+| R2  | TOC section fields                                                                | Must-have | ✅  | ✅  |
+| R3  | `chunk_index`                                                                     | Must-have | ✅  | ✅  |
+| R4  | Pre-TOC chunks null/empty                                                         | Must-have | ✅  | ✅  |
+| R5  | Independent from DB/embeddings/API/frontend                                       | Must-have | ✅  | ✅  |
+| R6  | Inspectable output                                                                | Must-have | ✅  | ✅  |
+| R7  | `chunk_pdf` exposed                                                               | Must-have | ✅  | ✅  |
+| R8  | JSON persistence                                                                  | Must-have | ✅  | ✅  |
+| R9  | ~50 char overlap via trailing fragment carry-forward                              | Must-have | ❌  | ✅  |
 
 ## Selected Shape
 
-Use **A: Concatenate full text → sliding window → annotate with TOC → save JSON**.
+Use **B: Block-aware accumulation with sentence fallback**.
 
 ## Slice
 
@@ -65,11 +72,12 @@ Output:
 
 Done when:
 
-- Full PDF text is extracted and concatenated
-- Sliding window produces chunks at correct positions (window=500, step=450)
-- Each chunk has correct `page_start`/`page_end` resolved from page offsets
+- Chunks respect paragraph and sentence boundaries (no mid-word/mid-sentence cuts)
+- Chunk sizes target ~500 chars (allow variance for boundary preservation)
+- Each chunk has correct `page_start`/`page_end` from fragment page numbers
 - Each chunk has `section_path`/`section_title`/`section_level` from TOC (or null/empty if before first TOC entry)
 - Each chunk has `chunk_index`
+- Trailing fragments (~50 chars) carry forward as overlap to next chunk
 - `temp/chunks.json` is written and can be reloaded with `load_chunks`
 - Sample chunks are printed for manual inspection
 - No DB/API/embedding/frontend work is introduced
