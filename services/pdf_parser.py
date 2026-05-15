@@ -1,15 +1,15 @@
 from pathlib import Path
-from typing import TypeAlias, TypedDict, cast
+from typing import TypedDict, cast
 
 import pymupdf
 
 
-TocEntry: TypeAlias = tuple[int, str, int]
-Toc: TypeAlias = list[TocEntry]
+TocEntry = tuple[int, str, int]
+Toc = list[TocEntry]
 
 
 class PdfMetadata(TypedDict):
-    path: str
+    path: str | None
     title: str | None
     author: str | None
     pdf_pages: int
@@ -26,11 +26,11 @@ def open_pdf(path: str | Path) -> pymupdf.Document:
 def extract_pdf_metadata(doc: pymupdf.Document) -> PdfMetadata:
     metadata = doc.metadata or {}
     return {
-        "path": cast(str, doc.name),
-        "title": cast(str | None, metadata.get("title")),
-        "author": cast(str | None, metadata.get("author")),
+        "path": doc.name,
+        "title": metadata.get("title"),
+        "author": metadata.get("author"),
         "pdf_pages": doc.page_count,
-        "toc": cast(Toc, doc.get_toc()),
+        "toc": doc.get_toc(),
     }
 
 
