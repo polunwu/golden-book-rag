@@ -10,11 +10,11 @@ Settings: `CHUNK_SIZE=1024`, no overlap, block-aware accumulation with sentence 
 
 | Metric | Value |
 |---|---|
-| Total chunks | 1284 |
+| Total chunks | 1286 |
 | PDF pages | 535 |
 | Pages covered | 535 (100%) |
-| Avg chunk length | 837 chars (~209 tokens) |
-| Min / Max | 274 / 1024 chars |
+| Avg chunk length | 836 chars (~209 tokens) |
+| Min / Max | 312 / 1024 chars |
 | Chunks > 1024 | 0 |
 | Chunks < 200 | 0 |
 | Multi-page chunks | ~29% |
@@ -44,14 +44,17 @@ Previously: 16 chunks contained `. . . . . . .` patterns from TOC dot-leaders; o
 
 **Result:** 26 noise chunks removed (1310 → 1284 total); dot-leader pattern count 16 → 0; min chunk length 27 → 274 chars.
 
-### 2. Multi-space + tab residue from PDF layout
+### 2. Whitespace + hyphenated line-break residue ✅ resolved
 
-- 100 chunks contain runs of 2+ spaces (column gaps preserved by PyMuPDF)
-- 3 chunks contain literal `\t` (mostly `•\t` bullet indentation)
+Previously: every chunk contained `\n` (avg ~10 per chunk; 13,361 total), 6,520 mid-word `\n` from PDF line wrapping, 150 hyphenated line breaks (`engineer-\ning`), 100 chunks with multi-space, 3 with literal `\t`. These hurt embedding quality (tokenizer fragments words like `culmina-\ntion` into 5+ tokens, dilutes semantic representation) and waste token budget.
 
-Probably harmless for embedding similarity but cosmetically ugly when surfaced to users in retrieval results.
+**Fix applied:** `_normalize(text)` in `services/chunker.py` runs before `_is_noise`. Steps:
 
-**Mitigation candidates:** post-process each chunk text with `re.sub(r"\s+", " ", text).strip()` before save.
+1. `re.sub(r"[-‐-―]\n(\w)", r"\1", text)` — collapse ASCII + Unicode hyphen line breaks
+2. `re.sub(r"\s+", " ", text)` — all whitespace (`\n`, `\t`, multi-space) → single space
+3. `strip()`
+
+**Result:** 0 chunks with `\n`, `\t`, or multi-space. Hyphen breaks 150 → ~4 (those 4 are either compound modifiers like `language- and` that should NOT join, or cross-block hyphenations that need block-aware logic — not worth the complexity for 0.3% of chunks). `\n\n` was already 0, so no paragraph structure was lost.
 
 ### 3. Cover-page metadata pollutes first chunks
 

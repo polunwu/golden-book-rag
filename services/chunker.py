@@ -9,8 +9,16 @@ import pymupdf
 CHUNK_SIZE = 1024
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
-_NOISE_CHARS = set(". \t\n")
+_HYPHEN_LINE_BREAK = re.compile(r"[-‐-―]\n(\w)")
+_WHITESPACE = re.compile(r"\s+")
+_NOISE_CHARS = set(". ")
 _NOISE_RATIO = 0.5
+
+
+def _normalize(text: str) -> str:
+    text = _HYPHEN_LINE_BREAK.sub(r"\1", text)
+    text = _WHITESPACE.sub(" ", text)
+    return text.strip()
 
 
 def _is_noise(text: str) -> bool:
@@ -38,7 +46,7 @@ def _extract_blocks(doc: pymupdf.Document) -> list[tuple[str, int]]:
             block_type = b[6]
             if block_type != 0:
                 continue
-            text = b[4].strip()
+            text = _normalize(b[4])
             if not text or _is_noise(text):
                 continue
             blocks.append((text, pdf_page))
