@@ -18,8 +18,7 @@ Implements **Shape B: Block-aware accumulation with sentence fallback**.
 ## 1. Constants and `Chunk` TypedDict
 
 ```python
-CHUNK_SIZE = 500
-OVERLAP = 50
+CHUNK_SIZE = 1024  # ~256 tokens (English ≈ 4 chars/token)
 
 class Chunk(TypedDict):
     text: str
@@ -69,7 +68,7 @@ For each `(text, page)`:
 
 ## 4. Implement `_pack_chunks`
 
-Greedy packer with trailing overlap.
+Greedy packer; no overlap (blocks already provide natural segmentation).
 
 ```python
 def _pack_chunks(fragments: list[tuple[str, int]], lookup_section) -> list[Chunk]:
@@ -84,7 +83,7 @@ For each `(frag_text, page)`:
 - Compute `addition = len(frag_text) + (1 if buffer else 0)` (joiner space)
 - If `buffer` is non-empty AND `buffer_len + addition > CHUNK_SIZE`:
   - Emit chunk from `buffer` (see below)
-  - Start new buffer with trailing fragments from previous: walk from the end, accumulate fragments until their summed length reaches `OVERLAP`; that becomes the new `buffer`
+  - Reset `buffer = []`, `buffer_len = 0`
 - Append `(frag_text, page)` to `buffer`; update `buffer_len`
 
 After loop: if `buffer` non-empty, emit final chunk.
@@ -137,7 +136,7 @@ def load_chunks(path: str | Path) -> list[Chunk]:
 
 - `services/chunker.py` exports `Chunk`, `chunk_pdf`, `save_chunks`, `load_chunks`
 - Chunks no longer cut mid-word or mid-sentence (visual inspection of sample output)
-- Chunk lengths cluster around 500 chars (with some variance, e.g., 300–550)
+- Chunk lengths cluster near `CHUNK_SIZE` (with some variance from boundary preservation; observed avg ~836 chars / ~209 tokens on sample PDF)
 - Each chunk's `page_start`/`page_end` reflect the pages of its first/last fragment
 - TOC section fields populated correctly (or null/empty for pre-TOC chunks)
 - `temp/chunks.json` written and reloadable

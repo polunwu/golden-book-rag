@@ -1,15 +1,14 @@
 import bisect
 import json
+import re
 from pathlib import Path
-from typing import TypedDict
+from typing import Callable, TypedDict
 
 import pymupdf
 
-from services.pdf_parser import extract_page_text
+CHUNK_SIZE = 1024
 
-CHUNK_SIZE = 500
-OVERLAP = 50
-STEP = CHUNK_SIZE - OVERLAP
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
 
 class Chunk(TypedDict):
@@ -22,26 +21,42 @@ class Chunk(TypedDict):
     chunk_index: int
 
 
-def _build_page_offsets(
-    doc: pymupdf.Document,
-) -> tuple[str, list[tuple[int, int, int]]]:
-    full_text = ""
-    offsets: list[tuple[int, int, int]] = []
+def _extract_blocks(doc: pymupdf.Document) -> list[tuple[str, int]]:
+    blocks: list[tuple[str, int]] = []
     for pdf_page in range(1, doc.page_count + 1):
-        page_text = extract_page_text(doc, pdf_page)
-        start = len(full_text)
-        full_text += page_text
-        offsets.append((start, len(full_text), pdf_page))
-    return full_text, offsets
+        raw = doc[pdf_page - 1].get_text("blocks")
+        for b in raw:
+            block_type = b[6]
+            if block_type != 0:
+                continue
+            text = b[4].strip()
+            if not text:
+                continue
+            blocks.append((text, pdf_page))
+    return blocks
 
 
-def _char_to_page(offsets: list[tuple[int, int, int]], pos: int) -> int:
-    starts = [s for s, _, _ in offsets]
-    idx = max(0, bisect.bisect_right(starts, pos) - 1)
-    return offsets[idx][2]
+def _split_oversized(blocks: list[tuple[str, int]]) -> list[tuple[str, int]]:
+    fragments: list[tuple[str, int]] = []
+    for text, page in blocks:
+        if len(text) <= CHUNK_SIZE:
+            fragments.append((text, page))
+            continue
+        for sentence in _SENTENCE_SPLIT.split(text):
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            if len(sentence) <= CHUNK_SIZE:
+                fragments.append((sentence, page))
+            else:
+                for i in range(0, len(sentence), CHUNK_SIZE):
+                    fragments.append((sentence[i : i + CHUNK_SIZE], page))
+    return fragments
 
 
-def _build_toc_section_lookup(toc: list[tuple[int, str, int]]):
+def _build_toc_section_lookup(
+    toc: list[tuple[int, str, int]],
+) -> Callable[[int], tuple[list[str], str | None, int | None]]:
     snapshots: list[tuple[int, dict[int, str]]] = []
     active: dict[int, str] = {}
     for level, title, pdf_page in toc:
@@ -66,17 +81,20 @@ def _build_toc_section_lookup(toc: list[tuple[int, str, int]]):
     return lookup
 
 
-def chunk_pdf(doc: pymupdf.Document) -> list[Chunk]:
-    full_text, offsets = _build_page_offsets(doc)
-    lookup_section = _build_toc_section_lookup(doc.get_toc())
-
+def _pack_chunks(
+    fragments: list[tuple[str, int]],
+    lookup_section: Callable[[int], tuple[list[str], str | None, int | None]],
+) -> list[Chunk]:
     chunks: list[Chunk] = []
-    i = 0
+    buffer: list[tuple[str, int]] = []
+    buffer_len = 0
     chunk_index = 0
-    while i < len(full_text):
-        text = full_text[i : i + CHUNK_SIZE]
-        page_start = _char_to_page(offsets, i)
-        page_end = _char_to_page(offsets, min(i + CHUNK_SIZE - 1, len(full_text) - 1))
+
+    def emit() -> None:
+        nonlocal chunk_index
+        text = " ".join(f for f, _ in buffer)
+        page_start = buffer[0][1]
+        page_end = buffer[-1][1]
         section_path, section_title, section_level = lookup_section(page_start)
         chunks.append(
             Chunk(
@@ -90,9 +108,28 @@ def chunk_pdf(doc: pymupdf.Document) -> list[Chunk]:
             )
         )
         chunk_index += 1
-        i += STEP
+
+    for frag_text, page in fragments:
+        addition = len(frag_text) + (1 if buffer else 0)
+        if buffer and buffer_len + addition > CHUNK_SIZE:
+            emit()
+            buffer = []
+            buffer_len = 0
+            addition = len(frag_text)
+        buffer.append((frag_text, page))
+        buffer_len += addition
+
+    if buffer:
+        emit()
 
     return chunks
+
+
+def chunk_pdf(doc: pymupdf.Document) -> list[Chunk]:
+    blocks = _extract_blocks(doc)
+    fragments = _split_oversized(blocks)
+    lookup_section = _build_toc_section_lookup(doc.get_toc())
+    return _pack_chunks(fragments, lookup_section)
 
 
 def save_chunks(chunks: list[Chunk], path: str | Path) -> None:
