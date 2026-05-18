@@ -9,6 +9,15 @@ import pymupdf
 CHUNK_SIZE = 1024
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+_NOISE_CHARS = set(". \t\n")
+_NOISE_RATIO = 0.5
+
+
+def _is_noise(text: str) -> bool:
+    if not text:
+        return True
+    noise = sum(1 for c in text if c in _NOISE_CHARS)
+    return noise / len(text) > _NOISE_RATIO
 
 
 class Chunk(TypedDict):
@@ -30,7 +39,7 @@ def _extract_blocks(doc: pymupdf.Document) -> list[tuple[str, int]]:
             if block_type != 0:
                 continue
             text = b[4].strip()
-            if not text:
+            if not text or _is_noise(text):
                 continue
             blocks.append((text, pdf_page))
     return blocks
