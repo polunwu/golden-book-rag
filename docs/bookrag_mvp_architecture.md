@@ -39,7 +39,7 @@ LLM Response Generation
 | Backend API | FastAPI |
 | Database | PostgreSQL |
 | Vector Search | pgvector |
-| Embedding Model | OpenAI text-embedding-3-small |
+| Embedding Model | Google gemini-embedding-001 (Matryoshka truncated to 1536) |
 | PDF Parsing | PyMuPDF |
 | ORM | SQLAlchemy (optional) |
 | Frontend (future) | React / Next.js |
@@ -110,7 +110,7 @@ Generate embedding vectors for each chunk.
 
 Recommended model:
 
-- OpenAI text-embedding-3-small
+- Google `gemini-embedding-001` (Matryoshka truncated to 1536-dim, L2-normalized)
 
 Vector dimension:
 
