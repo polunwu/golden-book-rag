@@ -62,5 +62,14 @@
     "expected_page_end": 352,
     "expected_section_substring": "Quantization",
     "expected_keywords": ["quantization", "precision"]
+  },
+  {
+    "id": "case-09",
+    "query": "How do I bake a perfect sourdough loaf at home?",
+    "out_of_scope": true,
+    "expected_page_start": 0,
+    "expected_page_end": 0,
+    "expected_section_substring": "",
+    "expected_keywords": []
   }
 ]

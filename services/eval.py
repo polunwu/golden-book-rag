@@ -6,13 +6,14 @@ from services.chunker import Chunk
 from services.embeddings import Embedding, embed_batch_call, l2_normalize, make_client
 
 
-class EvalCase(TypedDict):
+class EvalCase(TypedDict, total=False):
     id: str
     query: str
     expected_page_start: int
     expected_page_end: int
     expected_section_substring: str
     expected_keywords: list[str]
+    out_of_scope: bool
 
 
 class CaseResult(TypedDict):
@@ -22,6 +23,7 @@ class CaseResult(TypedDict):
     hit: bool
     first_hit_rank: int | None
     top_k_indices: list[int]
+    out_of_scope: bool
 
 
 class EvalReport(TypedDict):
@@ -83,12 +85,16 @@ def run_eval(
 ) -> EvalReport:
     case_results: list[CaseResult] = []
     for case in cases:
-        expected = resolve_expected(case, chunks)
-        if not expected:
-            raise ValueError(
-                f"case {case['id']} resolved to 0 chunks — "
-                f"check page range / section substring"
-            )
+        oos = case.get("out_of_scope", False)
+        if oos:
+            expected: list[int] = []
+        else:
+            expected = resolve_expected(case, chunks)
+            if not expected:
+                raise ValueError(
+                    f"case {case['id']} resolved to 0 chunks — "
+                    f"check page range / section substring"
+                )
         qv = embed_query(case["query"])
         top = retrieve(qv, embeddings, k=k)
         hit_rank = next(
@@ -103,14 +109,18 @@ def run_eval(
                 hit=hit_rank is not None,
                 first_hit_rank=hit_rank,
                 top_k_indices=top,
+                out_of_scope=oos,
             )
         )
-    mean_r = sum(
-        recall_at_k(r["top_k_indices"], r["expected_indices"], k) for r in case_results
-    ) / len(case_results)
-    mean_m = sum(
-        mrr(r["top_k_indices"], r["expected_indices"]) for r in case_results
-    ) / len(case_results)
+    scored = [r for r in case_results if not r["out_of_scope"]]
+    if scored:
+        mean_r = sum(
+            recall_at_k(r["top_k_indices"], r["expected_indices"], k) for r in scored
+        ) / len(scored)
+        mean_m = sum(mrr(r["top_k_indices"], r["expected_indices"]) for r in scored) / len(scored)
+    else:
+        mean_r = 0.0
+        mean_m = 0.0
     return EvalReport(
         k=k,
         cases=case_results,
@@ -121,10 +131,11 @@ def run_eval(
 
 def print_report(report: EvalReport) -> None:
     for r in report["cases"]:
+        tag = " OOS" if r["out_of_scope"] else ""
         print(
-            f"[{r['id']}] hit={r['hit']} rank={r['first_hit_rank']} "
+            f"[{r['id']}{tag}] hit={r['hit']} rank={r['first_hit_rank']} "
             f"expected={r['expected_indices']} top={r['top_k_indices']} "
             f"q={r['query']!r}"
         )
-    print(f"\nmean Recall@{report['k']}: {report['mean_recall_at_k']:.3f}")
-    print(f"mean MRR: {report['mean_mrr']:.3f}")
+    print(f"\nmean Recall@{report['k']}: {report['mean_recall_at_k']:.3f} (OOS excluded)")
+    print(f"mean MRR: {report['mean_mrr']:.3f} (OOS excluded)")
