@@ -1,0 +1,66 @@
+[
+  {
+    "id": "case-01",
+    "query": "How does AI engineering differ from ML engineering?",
+    "expected_page_start": 64,
+    "expected_page_end": 64,
+    "expected_section_substring": "AI Engineering Versus ML Engineering",
+    "expected_keywords": ["AI engineering", "ML"]
+  },
+  {
+    "id": "case-02",
+    "query": "What is RAG?",
+    "expected_page_start": 278,
+    "expected_page_end": 278,
+    "expected_section_substring": "RAG",
+    "expected_keywords": ["RAG", "retrieval-augmented generation"]
+  },
+  {
+    "id": "case-03",
+    "query": "What is quantization?",
+    "expected_page_start": 352,
+    "expected_page_end": 352,
+    "expected_section_substring": "Quantization",
+    "expected_keywords": ["quantization", "bits"]
+  },
+  {
+    "id": "case-04",
+    "query": "What does temperature do when sampling tokens?",
+    "expected_page_start": 115,
+    "expected_page_end": 115,
+    "expected_section_substring": "Sampling Strategies",
+    "expected_keywords": ["temperature", "softmax"]
+  },
+  {
+    "id": "case-05",
+    "query": "What does Time Between Tokens (TBT) measure for foundation model inference?",
+    "expected_page_start": 436,
+    "expected_page_end": 437,
+    "expected_section_substring": "Inference Performance Metrics",
+    "expected_keywords": ["TBT", "latency"]
+  },
+  {
+    "id": "case-06",
+    "query": "When should I use RAG instead of finetuning?",
+    "expected_page_start": 342,
+    "expected_page_end": 342,
+    "expected_section_substring": "Finetuning and RAG",
+    "expected_keywords": ["RAG", "finetuning"]
+  },
+  {
+    "id": "case-07",
+    "query": "How do people trick AI models into bypassing their safety rules?",
+    "expected_page_start": 263,
+    "expected_page_end": 263,
+    "expected_section_substring": "Jailbreaking and Prompt Injection",
+    "expected_keywords": ["jailbreak", "prompt injection"]
+  },
+  {
+    "id": "case-08",
+    "query": "為什麼用更少位元表示模型可以加快推論？",
+    "expected_page_start": 352,
+    "expected_page_end": 352,
+    "expected_section_substring": "Quantization",
+    "expected_keywords": ["quantization", "precision"]
+  }
+]
