@@ -13,15 +13,21 @@ from services.chunker import Chunk
 
 load_dotenv()
 
-if not os.environ.get("GEMINI_API_KEY"):
-    raise RuntimeError("GEMINI_API_KEY missing — set in .env or environment")
-
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 1536
 EMBED_TOKEN_BUDGET = 18_000
 EMBED_BATCH_HARD_CAP = 100
 PER_TEXT_TOKEN_CAP = 2_048
-TOKENS_PER_CHAR = 0.25
+TOKENS_PER_LATIN_CHAR = 0.25
+TOKENS_PER_CJK_CHAR = 1.0
+
+_CJK_RANGES = (
+    (0x3040, 0x30FF),  # Hiragana + Katakana
+    (0x3400, 0x4DBF),  # CJK Extension A
+    (0x4E00, 0x9FFF),  # CJK Unified Ideographs
+    (0xAC00, 0xD7AF),  # Hangul Syllables
+    (0xFF00, 0xFFEF),  # Halfwidth / Fullwidth forms
+)
 
 
 class Embedding(TypedDict):
@@ -30,8 +36,21 @@ class Embedding(TypedDict):
     embedding_model: str
 
 
+def _is_cjk(ch: str) -> bool:
+    code = ord(ch)
+    return any(lo <= code <= hi for lo, hi in _CJK_RANGES)
+
+
 def _est_tokens(text: str) -> int:
-    return max(1, int(len(text) * TOKENS_PER_CHAR))
+    cjk = sum(1 for c in text if _is_cjk(c))
+    latin = len(text) - cjk
+    return max(1, int(cjk * TOKENS_PER_CJK_CHAR + latin * TOKENS_PER_LATIN_CHAR))
+
+
+def make_client() -> genai.Client:
+    if not os.environ.get("GEMINI_API_KEY"):
+        raise RuntimeError("GEMINI_API_KEY missing — set in .env or environment")
+    return genai.Client()
 
 
 def _check_chunk_sizes(chunks: list[Chunk]) -> None:
@@ -76,7 +95,7 @@ def _is_retryable(exc: BaseException) -> bool:
     retry=retry_if_exception(_is_retryable),
     reraise=True,
 )
-def _embed_batch_call(
+def embed_batch_call(
     client: genai.Client,
     texts: list[str],
     task_type: str,
@@ -99,7 +118,7 @@ def _embed_batch_call(
     return out
 
 
-def _l2_normalize(vec: list[float]) -> list[float]:
+def l2_normalize(vec: list[float]) -> list[float]:
     arr = np.asarray(vec, dtype=np.float32)
     norm = np.linalg.norm(arr)
     if norm == 0:
@@ -109,10 +128,10 @@ def _l2_normalize(vec: list[float]) -> list[float]:
 
 def embed_chunks(chunks: list[Chunk]) -> list[Embedding]:
     _check_chunk_sizes(chunks)
-    client = genai.Client()
+    client = make_client()
     out: list[Embedding] = []
     for batch in _pack_batches(chunks):
-        vectors = _embed_batch_call(
+        vectors = embed_batch_call(
             client,
             [c["text"] for c in batch],
             task_type="RETRIEVAL_DOCUMENT",
@@ -121,7 +140,7 @@ def embed_chunks(chunks: list[Chunk]) -> list[Embedding]:
             out.append(
                 Embedding(
                     chunk_index=c["chunk_index"],
-                    vector=_l2_normalize(v),
+                    vector=l2_normalize(v),
                     embedding_model=EMBEDDING_MODEL,
                 )
             )

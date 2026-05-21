@@ -1,20 +1,18 @@
 """Probe Gemini embed_content with varying batch sizes."""
 import time
 
-from google import genai
-
-from services.embeddings import _embed_batch_call  # noqa: F401
+from services.embeddings import embed_batch_call, make_client
 
 SAMPLES = ["sample text " * 50] * 100
 
 
 def main() -> None:
-    client = genai.Client()
+    client = make_client()
     for n in (1, 10, 50, 100):
         batch = SAMPLES[:n]
         t0 = time.perf_counter()
         try:
-            vecs = _embed_batch_call(client, batch, task_type="RETRIEVAL_DOCUMENT")
+            vecs = embed_batch_call(client, batch, task_type="RETRIEVAL_DOCUMENT")
             dt = time.perf_counter() - t0
             print(f"batch={n:>3}  ok  vectors={len(vecs)}  dim={len(vecs[0])}  {dt:.2f}s")
         except Exception as e:

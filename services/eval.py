@@ -1,10 +1,9 @@
 from typing import TypedDict
 
 import numpy as np
-from google import genai
 
 from services.chunker import Chunk
-from services.embeddings import Embedding, _embed_batch_call, _l2_normalize
+from services.embeddings import Embedding, embed_batch_call, l2_normalize, make_client
 
 
 class EvalCase(TypedDict):
@@ -33,9 +32,9 @@ class EvalReport(TypedDict):
 
 
 def embed_query(text: str) -> list[float]:
-    client = genai.Client()
-    vec = _embed_batch_call(client, [text], task_type="RETRIEVAL_QUERY")[0]
-    return _l2_normalize(vec)
+    client = make_client()
+    vec = embed_batch_call(client, [text], task_type="RETRIEVAL_QUERY")[0]
+    return l2_normalize(vec)
 
 
 def retrieve(
