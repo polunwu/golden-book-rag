@@ -18,9 +18,10 @@ shaping: true
 | R3.3   | API key read from env (`GEMINI_API_KEY` via `.env`); never committed                                              | Must-have |
 | R3.4   | 🟡 Pre-flight assert: no chunk text exceeds 2,048 tokens (Gemini per-text limit); fail fast if exceeded            | Must-have |
 | **R4** | **Eval harness reusable across future ingestion strategies**                                                      | Must-have |
-| R4.1   | ~5–10 hand-curated `(query, expected_chunk_indices)` cases stored as JSON                                         | Must-have |
+| R4.1   | 🟡 ~5–10 hand-curated cases stored as JSON with **durable ground truth** (`expected_page_start/end`, `expected_section_substring`, `expected_keywords`); resolved to current `chunk_indices` at eval time | Must-have |
 | R4.2   | Compute Recall@5 and MRR against in-memory vectors via cosine similarity                                          | Must-have |
 | R4.3   | Print per-case results + aggregate metrics for manual inspection                                                  | Must-have |
+| R4.4   | 🟡 Eval cases survive chunker iteration without re-curation (no `chunk_index` in stored ground truth)              | Must-have |
 | R5     | Step 3 independent from DB / pgvector / FastAPI / frontend                                                        | Must-have |
 | R6     | Expose `embed_chunks(chunks) -> list[Embedding]` in `services/embeddings.py` for Step 4                           | Must-have |
 | R7     | Debug script in `scripts/` runs end-to-end: load chunks → embed → save → run eval                                 | Must-have |
@@ -54,15 +55,16 @@ Fails R3.1: no batching. High latency + rate-limit risk on real books.
 | B4.1   | `save_embeddings(embeddings, path)` → `temp/embeddings.json` (list of Embedding dicts)                                                                                      |      |
 | B4.2   | `load_embeddings(path) -> list[Embedding]` reads JSON back                                                                                                                  |      |
 | **B5** | **Eval harness** in `services/eval.py`                                                                                                                                      |      |
-| B5.1   | Eval case JSON schema: `[{ "id": str, "query": str, "expected_chunk_indices": list[int] }]` at `temp/eval_cases.json`                                                       |      |
+| B5.1   | 🟡 Eval case JSON schema: `[{ "id": str, "query": str, "expected_page_start": int, "expected_page_end": int, "expected_section_substring": str, "expected_keywords": list[str] }]` at `eval/cases.json` (out of `temp/`) |      |
 | B5.2   | `embed_query(text) -> list[float]` via `gemini-embedding-001` @ 1536, `task_type="RETRIEVAL_QUERY"`; L2-normalize before return (on-the-fly, no caching)                    |      |
-| B5.3   | 🟡 `retrieve(query_vec, embeddings, k=5) -> list[chunk_index]` via dot product (vectors already normalized, so dot = cosine); ranked descending                              |      |
-| B5.4   | `recall_at_k(retrieved, expected, k) -> float` and `mrr(retrieved, expected) -> float`                                                                                      |      |
-| B5.5   | `run_eval(eval_cases, embeddings, k=5) -> EvalReport` — per-case (query, hit?, first_hit_rank, top_k_indices) + aggregate (mean Recall@5, mean MRR)                         |      |
+| B5.3   | `retrieve(query_vec, embeddings, k=5) -> list[chunk_index]` via dot product (vectors already normalized, so dot = cosine); ranked descending                                 |      |
+| B5.4   | 🟡 `resolve_expected(case, chunks) -> list[int]` — maps durable ground truth to current `chunk_indices` via page-range overlap + section_title substring match              |      |
+| B5.5   | `recall_at_k(retrieved, expected, k) -> float` and `mrr(retrieved, expected) -> float`                                                                                      |      |
+| B5.6   | 🟡 `run_eval(eval_cases, chunks, embeddings, k=5) -> EvalReport` — calls `resolve_expected` per case before `retrieve`; per-case (query, hit?, first_hit_rank, top_k_indices) + aggregate (mean Recall@5, mean MRR) |      |
 | **B6** | **Scripts**                                                                                                                                                                |      |
 | B6.1   | 🟡 **Live probe** `scripts/probe_gemini_batch.py`: call `embed_content` with fixed sample at batch sizes 1, 10, 50, 100; record latency + any errors; confirms multi-text input works for `gemini-embedding-001` on the Gemini API before bulk ingestion runs |      |
-| B6.2   | **Debug script** `scripts/embed_pdf_inspect.py`: load chunks → `embed_chunks` → `save_embeddings` → load eval cases → `run_eval` → print report                            |      |
-| **B7** | **Eval cases seed**: hand-curate ~5–10 cases against current `chunks.json` and commit `temp/eval_cases.json`                                                                |      |
+| B6.2   | 🟡 **Debug script** `scripts/embed_pdf_inspect.py`: load chunks → `embed_chunks` → `save_embeddings` → load `eval/cases.json` → `run_eval(cases, chunks, embeddings)` → print report |      |
+| **B7** | 🟡 **Eval cases seed** at `eval/cases.json` (committed; out of `temp/`): hand-curate **10 cases** following [spike-eval-cases.md](./spike-eval-cases.md) typology (2 definition + 2 fact + 2 conceptual + 2 paraphrased + 1 OOS + 1 cross-section), mostly English + 1–2 Chinese for cross-lingual sniff. Ground truth via lexical search + section filter + manual verify (not embedding oracle). Worked example: case-01 in spike doc. |      |
 
 ## Fit Check
 
@@ -76,9 +78,10 @@ Fails R3.1: no batching. High latency + rate-limit risk on real books.
 | R3.2 | Retry/backoff on transient errors                          | Must-have | ✅  | ✅  |
 | R3.3 | API key from env (.env), never committed                   | Must-have | ✅  | ✅  |
 | R3.4 | 🟡 Pre-flight assert: no chunk > 2,048 tokens              | Must-have | ✅  | ✅  |
-| R4.1 | ~5–10 (query, expected_chunk_indices) cases as JSON        | Must-have | ✅  | ✅  |
+| R4.1 | 🟡 ~5–10 cases as JSON with durable ground truth           | Must-have | ❌  | ✅  |
 | R4.2 | Recall@5 + MRR via cosine                                  | Must-have | ✅  | ✅  |
 | R4.3 | Print per-case + aggregate metrics                         | Must-have | ✅  | ✅  |
+| R4.4 | 🟡 Eval cases survive chunker iteration                    | Must-have | ❌  | ✅  |
 | R5   | Independent from DB/pgvector/FastAPI/frontend              | Must-have | ✅  | ✅  |
 | R6   | embed_chunks() exposed in services/embeddings.py           | Must-have | ✅  | ✅  |
 | R7   | End-to-end debug script                                    | Must-have | ✅  | ✅  |
@@ -87,6 +90,7 @@ Fails R3.1: no batching. High latency + rate-limit risk on real books.
 
 - A fails R3.1: per-chunk calls eliminate batching entirely.
 - 🟡 B's R3.1 resolved by [spike-batch-size.md](./spike-batch-size.md): token-budgeted packing (`EMBED_TOKEN_BUDGET=18_000`, `EMBED_BATCH_HARD_CAP=100`) with a live probe before first full ingestion run.
+- 🟡 B's R4.1 and R4.4 resolved by [spike-eval-cases.md](./spike-eval-cases.md): durable ground-truth schema (page range + section substring + keywords) + `resolve_expected` at eval time. Storage moved from `temp/eval_cases.json` to `eval/cases.json`.
 
 ## Selected Shape
 
@@ -99,8 +103,8 @@ Use **B: Batched embedding pipeline + reusable eval harness**.
 Input:
 
 - `temp/chunks.json` (from Step 2)
-- `temp/eval_cases.json` (hand-curated; ~5–10 cases)
-- 🟡 `GEMINI_API_KEY` in `.env`
+- 🟡 `eval/cases.json` (committed; hand-curated; 10 cases with durable ground truth)
+- `GEMINI_API_KEY` in `.env`
 
 Output:
 
@@ -112,11 +116,13 @@ Done when:
 - Every chunk in `chunks.json` has a corresponding 1536-dim vector (gemini-embedding-001, Matryoshka-truncated) in `embeddings.json` keyed by `chunk_index`
 - 🟡 All stored vectors are L2-normalized (`‖v‖ ≈ 1.0` within float tolerance)
 - 🟡 Pre-flight rejects any chunk > 2,048 tokens before calling Gemini
-- 🟡 Batched calls (default 32 per request); transient errors retry with backoff via `tenacity`
+- Batched calls (token-budget packing per [spike-batch-size.md](./spike-batch-size.md)); transient errors retry with backoff via `tenacity`
 - `GEMINI_API_KEY` loaded from `.env`; missing key raises clear error
 - `load_embeddings("temp/embeddings.json")` round-trips
+- 🟡 `eval/cases.json` committed (10 cases, durable ground truth — no `chunk_index` in stored cases)
+- 🟡 `resolve_expected(case, chunks)` returns at least one `chunk_index` per case (sanity check during dev)
 - Eval report prints Recall@5 and MRR; obviously-correct queries can be manually sanity-checked as hits
-- `services/eval.py` exposes `embed_query`, `retrieve`, `recall_at_k`, `mrr`, `run_eval` (reusable by Step 4)
+- 🟡 `services/eval.py` exposes `embed_query`, `retrieve`, `resolve_expected`, `recall_at_k`, `mrr`, `run_eval` (reusable by Step 4)
 - No DB / FastAPI / embedding-in-Postgres / frontend work introduced
 
 ## Next Step

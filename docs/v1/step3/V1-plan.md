@@ -17,7 +17,7 @@ Implements **Shape B: Batched embedding pipeline + reusable eval harness** (see 
 | `services/eval.py`                | Create                |
 | `scripts/probe_gemini_batch.py`   | Create (run once)     |
 | `scripts/embed_pdf_inspect.py`    | Create                |
-| `temp/eval_cases.json`            | Hand-curate           |
+| 🟡 `eval/cases.json`              | Hand-curate (committed; see [spike-eval-cases.md](./spike-eval-cases.md)) |
 
 ---
 
@@ -232,19 +232,23 @@ No `indent=2` — embedding files are large; keep compact. Inspect via `jq` if n
 
 ## 11. `services/eval.py`
 
-Eval case schema (mirrors `temp/eval_cases.json`):
+🟡 Eval case schema with durable ground truth (mirrors `eval/cases.json`):
 
 ```python
 class EvalCase(TypedDict):
     id: str
     query: str
-    expected_chunk_indices: list[int]
+    expected_page_start: int
+    expected_page_end: int
+    expected_section_substring: str       # case-insensitive substring of section_title
+    expected_keywords: list[str]          # informational; not used by default resolver
 
 class CaseResult(TypedDict):
     id: str
     query: str
+    expected_indices: list[int]           # resolved at eval time
     hit: bool
-    first_hit_rank: int | None  # 1-based; None if no hit in top-k
+    first_hit_rank: int | None            # 1-based; None if no hit in top-k
     top_k_indices: list[int]
 
 class EvalReport(TypedDict):
@@ -273,6 +277,16 @@ def retrieve(
     top = np.argsort(-scores)[:k]
     return [embeddings[i]["chunk_index"] for i in top]
 
+def resolve_expected(case: EvalCase, chunks: list[Chunk]) -> list[int]:
+    """Map durable ground truth → current chunk_indices via page-range overlap + section substring."""
+    sub = case["expected_section_substring"].lower()
+    return [
+        c["chunk_index"] for c in chunks
+        if c["page_start"] <= case["expected_page_end"]
+        and c["page_end"]   >= case["expected_page_start"]
+        and sub in (c["section_title"] or "").lower()
+    ]
+
 def recall_at_k(retrieved: list[int], expected: list[int], k: int) -> float:
     if not expected:
         return 0.0
@@ -287,31 +301,36 @@ def mrr(retrieved: list[int], expected: list[int]) -> float:
 
 def run_eval(
     cases: list[EvalCase],
+    chunks: list[Chunk],
     embeddings: list[Embedding],
     k: int = 5,
 ) -> EvalReport:
     case_results: list[CaseResult] = []
     for case in cases:
+        expected = resolve_expected(case, chunks)
+        if not expected:
+            raise ValueError(f"case {case['id']} resolved to 0 chunks — check page range / section substring")
         qv = embed_query(case["query"])
         top = retrieve(qv, embeddings, k=k)
         hit_rank = next(
-            (r for r, idx in enumerate(top, start=1) if idx in case["expected_chunk_indices"]),
+            (r for r, idx in enumerate(top, start=1) if idx in expected),
             None,
         )
         case_results.append(CaseResult(
             id=case["id"],
             query=case["query"],
+            expected_indices=expected,
             hit=hit_rank is not None,
             first_hit_rank=hit_rank,
             top_k_indices=top,
         ))
-    mean_r = sum(recall_at_k(r["top_k_indices"], next(c["expected_chunk_indices"] for c in cases if c["id"] == r["id"]), k) for r in case_results) / len(case_results)
-    mean_m = sum(mrr(r["top_k_indices"], next(c["expected_chunk_indices"] for c in cases if c["id"] == r["id"])) for r in case_results) / len(case_results)
+    mean_r = sum(recall_at_k(r["top_k_indices"], r["expected_indices"], k) for r in case_results) / len(case_results)
+    mean_m = sum(mrr(r["top_k_indices"], r["expected_indices"]) for r in case_results) / len(case_results)
     return EvalReport(k=k, cases=case_results, mean_recall_at_k=mean_r, mean_mrr=mean_m)
 
 def print_report(report: EvalReport) -> None:
     for r in report["cases"]:
-        print(f"[{r['id']}] hit={r['hit']} rank={r['first_hit_rank']} top={r['top_k_indices']} q={r['query']!r}")
+        print(f"[{r['id']}] hit={r['hit']} rank={r['first_hit_rank']} expected={r['expected_indices']} top={r['top_k_indices']} q={r['query']!r}")
     print(f"\nmean Recall@{report['k']}: {report['mean_recall_at_k']:.3f}")
     print(f"mean MRR: {report['mean_mrr']:.3f}")
 ```
@@ -366,7 +385,7 @@ import json
 
 CHUNKS_PATH = "temp/chunks.json"
 EMBEDDINGS_PATH = "temp/embeddings.json"
-EVAL_CASES_PATH = "temp/eval_cases.json"
+EVAL_CASES_PATH = "eval/cases.json"  # 🟡 committed, out of temp/
 
 def main():
     chunks = load_chunks(CHUNKS_PATH)
@@ -381,7 +400,7 @@ def main():
     assert len(reloaded) == len(embeddings)
 
     cases = json.loads(open(EVAL_CASES_PATH).read())
-    report = run_eval(cases, reloaded, k=5)
+    report = run_eval(cases, chunks, reloaded, k=5)  # 🟡 chunks needed for resolver
     print_report(report)
 
 if __name__ == "__main__":
@@ -390,30 +409,39 @@ if __name__ == "__main__":
 
 ---
 
-## 14. `temp/eval_cases.json` (B7) — hand-curate
+## 14. 🟡 `eval/cases.json` (B7) — hand-curate
 
-Format:
+`mkdir eval/` at repo root. Format (durable ground truth per [spike-eval-cases.md](./spike-eval-cases.md)):
 
 ```json
 [
   {
     "id": "case-01",
-    "query": "What is AI engineering?",
-    "expected_chunk_indices": [0, 1]
-  },
-  {
-    "id": "case-02",
-    "query": "...",
-    "expected_chunk_indices": [...]
+    "query": "How does AI engineering differ from ML engineering?",
+    "expected_page_start": 63,
+    "expected_page_end": 69,
+    "expected_section_substring": "AI Engineering Versus ML Engineering",
+    "expected_keywords": ["AI engineering", "ML"]
   }
 ]
 ```
 
-Process:
+**Target mix (10 cases):** 2 definition + 2 fact + 2 conceptual + 2 paraphrased + 1 out-of-scope + 1 cross-section. ~8 English + 1–2 Chinese (cross-lingual sniff).
 
-1. Open `temp/chunks.json`, skim to identify ~5–10 distinct topics covered
-2. For each: write a natural-language query, note 1–3 `chunk_index` values that should appear in top-5
-3. Bias toward queries where the answer is unambiguous to keep ground truth solid
+**Per-case workflow (~5 min):**
+
+1. Pick topic via `jq -r '[.[].section_title] | unique | .[]' temp/chunks.json`
+2. Write the query naturally (avoid the book's exact wording for paraphrased cases)
+3. Locate candidates via `jq` keyword filter + section filter:
+   ```bash
+   jq -r '.[] | select(.text | test("KEYWORD"; "i")) | select(.section_title != "Cover") |
+     "[\(.chunk_index)] p\(.page_start) §\(.section_title): \(.text[0:120])"' temp/chunks.json
+   ```
+4. Read candidate chunks; confirm at least one answers the query
+5. Record `page_start/end`, `section_substring`, `keywords` (NOT chunk_indices)
+6. Verify: `python -c "from services.eval import resolve_expected; from services.chunker import load_chunks; print(resolve_expected(case_dict, load_chunks('temp/chunks.json')))"` returns ≥1 chunk
+
+**Avoid embedding-oracle circularity:** ground truth comes from lexical/topical match, never from Gemini retrieval.
 
 ---
 
@@ -422,7 +450,7 @@ Process:
 1. **Deps + `.env`** (steps 1–2) → environment ready
 2. **`services/embeddings.py`** (steps 3–10) → core pipeline
 3. **`scripts/probe_gemini_batch.py`** (step 12) → run, confirm batch=100 works
-4. **Hand-curate `temp/eval_cases.json`** (step 14) → ground truth
+4. 🟡 **Hand-curate `eval/cases.json`** (step 14) → ground truth
 5. **`services/eval.py`** (step 11) → retrieval + metrics
 6. **`scripts/embed_pdf_inspect.py`** (step 13) → end-to-end
 7. Run debug script; eyeball printed eval report
@@ -435,7 +463,8 @@ Process:
 - `GEMINI_API_KEY` loaded from `.env`; missing key raises clear error before any API call
 - Probe script reports `ok` for batch sizes 1, 10, 50, 100 with `dim=1536`
 - `services/embeddings.py` exports `Embedding`, `embed_chunks`, `save_embeddings`, `load_embeddings`
-- `services/eval.py` exports `EvalCase`, `EvalReport`, `embed_query`, `retrieve`, `recall_at_k`, `mrr`, `run_eval`, `print_report`
+- 🟡 `services/eval.py` exports `EvalCase`, `EvalReport`, `embed_query`, `retrieve`, `resolve_expected`, `recall_at_k`, `mrr`, `run_eval`, `print_report`
+- 🟡 `eval/cases.json` committed with 10 hand-curated cases (durable ground truth); `resolve_expected` returns ≥1 chunk per case
 - `temp/embeddings.json` contains one entry per chunk in `chunks.json`, each with 1536-dim L2-normalized vector
 - `np.linalg.norm(vector)` ≈ 1.0 for every stored vector (within float32 tolerance)
 - Pre-flight rejects any chunk estimated > 2,048 tokens (won't fire given Step 2 sizes; defensive)
