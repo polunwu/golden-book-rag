@@ -1,9 +1,11 @@
-from typing import TypedDict
+from typing import Callable, TypedDict
 
 import numpy as np
 
 from services.chunker import Chunk
 from services.embeddings import Embedding, embed_batch_call, l2_normalize, make_client
+
+Retriever = Callable[[list[float], int], list[int]]
 
 
 class EvalCase(TypedDict, total=False):
@@ -40,8 +42,8 @@ def embed_query(text: str) -> list[float]:
 
 
 def retrieve(
-    query_vec: list[float],
     embeddings: list[Embedding],
+    query_vec: list[float],
     k: int = 5,
 ) -> list[int]:
     q = np.asarray(query_vec, dtype=np.float32)
@@ -80,7 +82,7 @@ def mrr(retrieved: list[int], expected: list[int]) -> float:
 def run_eval(
     cases: list[EvalCase],
     chunks: list[Chunk],
-    embeddings: list[Embedding],
+    retriever: Retriever,
     k: int = 5,
 ) -> EvalReport:
     case_results: list[CaseResult] = []
@@ -96,7 +98,7 @@ def run_eval(
                     f"check page range / section substring"
                 )
         qv = embed_query(case["query"])
-        top = retrieve(qv, embeddings, k=k)
+        top = retriever(qv, k)
         hit_rank = next(
             (r for r, idx in enumerate(top, start=1) if idx in expected),
             None,

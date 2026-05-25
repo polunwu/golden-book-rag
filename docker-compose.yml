@@ -1,0 +1,19 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookrag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookrag}
+      POSTGRES_DB: ${POSTGRES_DB:-bookrag}
+    ports:
+      - "5432:5432"
+    volumes:
+      - bookrag_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookrag}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  bookrag_pgdata:

@@ -1,10 +1,11 @@
 """Step 3 debug: embed chunks, save, run eval."""
 import json
+from functools import partial
 from pathlib import Path
 
 from services.chunker import load_chunks
 from services.embeddings import embed_chunks, load_embeddings, save_embeddings
-from services.eval import print_report, run_eval
+from services.eval import print_report, retrieve, run_eval
 
 CHUNKS_PATH = "temp/chunks.json"
 EMBEDDINGS_PATH = "temp/embeddings.json"
@@ -32,7 +33,7 @@ def main() -> None:
         embeddings = reloaded
 
     cases = json.loads(Path(EVAL_CASES_PATH).read_text())
-    report = run_eval(cases, chunks, embeddings, k=5)
+    report = run_eval(cases, chunks, partial(retrieve, embeddings), k=5)
     print_report(report)
 
 

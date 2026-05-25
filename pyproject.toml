@@ -10,13 +10,15 @@ dependencies = [
     "tenacity>=9.0",
     "python-dotenv>=1.0",
     "numpy>=2.0",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
 ]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["services"]
+packages = ["services", "db"]
 
 [build-system]
 requires = ["hatchling"]
