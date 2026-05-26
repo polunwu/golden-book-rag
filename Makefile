@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-shell db-reset db-status
+.PHONY: db-up db-down db-logs db-shell db-reset db-status db-migrate
 
 db-up:
 	docker compose up -d
@@ -21,3 +21,6 @@ db-reset:
 	docker compose down -v
 	docker compose up -d
 	@docker compose ps
+
+db-migrate:
+	uv run alembic upgrade head

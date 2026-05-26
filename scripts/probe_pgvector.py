@@ -4,7 +4,7 @@ import random
 import numpy as np
 from psycopg import sql
 
-from db.connection import get_connection, init_db
+from db.connection import get_connection
 from services.embeddings import EMBEDDING_DIM
 
 
@@ -16,7 +16,6 @@ def _rand_vec() -> np.ndarray:
 
 
 def main() -> None:
-    init_db()
     with get_connection() as conn:
         ver = conn.execute(
             "SELECT extversion FROM pg_extension WHERE extname = 'vector'"

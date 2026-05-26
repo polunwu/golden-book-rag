@@ -17,29 +17,35 @@ def _assert_index_parity(chunks: list[Chunk], embeddings: list[Embedding]) -> No
         )
 
 
-def load_book(
+def ingest_book(
     conn: psycopg.Connection,
+    book_id: uuid.UUID,
     chunks: list[Chunk],
     embeddings: list[Embedding],
     title: str,
     file_path: str,
 ) -> uuid.UUID:
-    """Full refresh: truncate, then insert one book + all chunks + all embeddings.
-    Idempotent — re-running fully replaces prior data."""
-    _assert_index_parity(chunks, embeddings)
+    """Per-book ingest. Single transaction:
+      1. UPSERT books row (id-keyed)
+      2. DELETE FROM chunks WHERE book_id = ?  (CASCADEs chunk_embeddings)
+      3. INSERT chunks + chunk_embeddings for this book
 
-    book_id = uuid.uuid4()
+    Idempotent per book_id. Does NOT touch other books' rows. Does NOT write
+    books.status — V3's orchestrator owns the pending/processing/ready/failed
+    lifecycle; V1 callers leave status at its default ('pending').
+    """
+    _assert_index_parity(chunks, embeddings)
     id_by_index = {c["chunk_index"]: uuid.uuid4() for c in chunks}
 
     with conn.cursor() as cur:
-        # Single-book MVP: full wipe + reload. Step 5 (multi-book upload) MUST
-        # replace this with per-book scoped ops — TRUNCATE destroys other books
-        # and locks whole tables. See shaping.md Step 5 Hand-off.
-        cur.execute("TRUNCATE books, chunks, chunk_embeddings CASCADE")
         cur.execute(
-            "INSERT INTO books (id, title, file_path) VALUES (%s, %s, %s)",
+            "INSERT INTO books (id, title, file_path) VALUES (%s, %s, %s) "
+            "ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, "
+            "file_path = EXCLUDED.file_path",
             (book_id, title, file_path),
         )
+        # CASCADE FK (rev _chunks_cascade) removes chunk_embeddings rows.
+        cur.execute("DELETE FROM chunks WHERE book_id = %s", (book_id,))
         cur.executemany(
             "INSERT INTO chunks (id, book_id, text, page_start, page_end, "
             "section_path, section_title, section_level, chunk_index) "
