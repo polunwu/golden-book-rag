@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-shell db-reset db-status db-migrate
+.PHONY: db-up db-down db-logs db-shell db-reset db-status db-migrate api-dev
 
 db-up:
 	docker compose up -d
@@ -24,3 +24,6 @@ db-reset:
 
 db-migrate:
 	uv run alembic upgrade head
+
+api-dev:
+	uv run uvicorn api.main:app --reload --port 8000
