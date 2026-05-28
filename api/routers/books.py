@@ -6,13 +6,15 @@ from uuid import UUID
 
 import psycopg
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query,
-    Response, UploadFile,
+    APIRouter, BackgroundTasks, Depends, File, HTTPException, Query,
+    Response,
 )
 from psycopg.rows import DictRow
 
 from api.deps import get_conn
-from api.schemas import BookList, BookOut, ChunkOut, ChunkPage, UploadResponse
+from api.schemas import (
+    BookList, BookOut, ChunkOut, ChunkPage, UploadBookForm, UploadResponse,
+)
 from services.ingest import run_ingest
 
 router = APIRouter(prefix="/books", tags=["books"])
@@ -35,11 +37,10 @@ def _upload_dir() -> Path:
 @router.post("/upload", response_model=UploadResponse, status_code=202)
 def upload_book(
     background_tasks: BackgroundTasks,
-    file: Annotated[UploadFile, File()],
-    title: Annotated[str, Form()],
-    book_id: Annotated[str | None, Form()] = None,
+    form: Annotated[UploadBookForm, File()],
     conn: psycopg.Connection[DictRow] = Depends(get_conn),
 ) -> UploadResponse:
+    file, title, book_id = form.file, form.title, form.book_id
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=422, detail="file must be application/pdf")
     if not title.strip():

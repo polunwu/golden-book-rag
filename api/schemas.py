@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from fastapi import UploadFile
 from pydantic import BaseModel
 
 BookStatus = Literal["pending", "processing", "ready", "failed"]
@@ -44,3 +45,9 @@ class ErrorOut(BaseModel):
 class UploadResponse(BaseModel):
     book_id: UUID
     status: BookStatus
+
+
+class UploadBookForm(BaseModel):
+    file: UploadFile
+    title: str
+    book_id: str | None = None
