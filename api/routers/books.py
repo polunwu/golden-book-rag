@@ -40,13 +40,11 @@ def upload_book(
     book_id: Annotated[str | None, Form()] = None,
     conn: psycopg.Connection[DictRow] = Depends(get_conn),
 ) -> UploadResponse:
-    # N10 — validate
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=422, detail="file must be application/pdf")
     if not title.strip():
         raise HTTPException(status_code=422, detail="title must not be empty")
 
-    # N11 — resolve book_id
     if book_id is not None:
         try:
             resolved_id = uuid.UUID(book_id)
@@ -62,23 +60,27 @@ def upload_book(
     else:
         resolved_id = uuid.uuid4()
 
-    # N12 — persist PDF with size cap. Reject before any DB writes.
+    # Stream to .partial, then atomic rename — keeps any existing pdf_path
+    # intact until size validation passes (re-ingest safety).
     pdf_path = _upload_dir() / f"{resolved_id}.pdf"
+    tmp_path = pdf_path.with_name(f"{resolved_id}.pdf.partial")
     max_bytes = _max_upload_bytes()
     written = 0
-    with pdf_path.open("wb") as out:
-        while chunk := file.file.read(1024 * 1024):
-            written += len(chunk)
-            if written > max_bytes:
-                out.close()
-                pdf_path.unlink(missing_ok=True)
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"file exceeds MAX_UPLOAD_MB={max_bytes // (1024 * 1024)}",
-                )
-            out.write(chunk)
+    try:
+        with tmp_path.open("wb") as out:
+            while chunk := file.file.read(1024 * 1024):
+                written += len(chunk)
+                if written > max_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"file exceeds MAX_UPLOAD_MB={max_bytes // (1024 * 1024)}",
+                    )
+                out.write(chunk)
+        os.replace(tmp_path, pdf_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
-    # N13 — upsert + reset lifecycle fields
     with conn.cursor() as cur:
         cur.execute(
             "INSERT INTO books (id, title, file_path, status, error_message) "
@@ -90,10 +92,7 @@ def upload_book(
         )
     conn.commit()
 
-    # N14 — schedule bg ingest (runs AFTER 202 is sent)
     background_tasks.add_task(run_ingest, resolved_id, str(pdf_path), title)
-
-    # N15 — 202
     return UploadResponse(book_id=resolved_id, status="pending")
 
 

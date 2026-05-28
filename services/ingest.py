@@ -3,6 +3,7 @@
 Pure sync code (ingest_pdf) wrapped in an async thread-offload (run_ingest).
 Imported by api/routers/books.py — must NOT import from api.* (R3.2).
 """
+import logging
 import uuid
 
 from anyio import to_thread
@@ -12,6 +13,8 @@ from services.chunker import chunk_pdf
 from services.embeddings import embed_chunks
 from services.pdf_parser import open_pdf
 from services.store import ingest_book
+
+log = logging.getLogger(__name__)
 
 
 def _set_status(
@@ -38,8 +41,8 @@ def ingest_pdf(book_id: uuid.UUID, pdf_path: str, title: str) -> None:
         _set_status(book_id, "ready")
     except Exception as exc:
         # Fresh conn — the ingest_book conn may be in aborted-tx state.
+        log.exception("ingest failed book_id=%s", book_id)
         _set_status(book_id, "failed", str(exc)[:2000])
-        raise
 
 
 async def run_ingest(book_id: uuid.UUID, pdf_path: str, title: str) -> None:

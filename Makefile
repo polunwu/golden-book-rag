@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-shell db-reset db-status db-migrate db-migrate-down api-dev
+.PHONY: db-up db-down db-logs db-shell db-reset db-status db-migrate db-migrate-down api-dev test
 
 db-up:
 	docker compose up -d
@@ -30,3 +30,7 @@ db-migrate-down:
 
 api-dev:
 	uv run uvicorn api.main:app --reload --port 8000
+
+# Needs `make db-up` + `make db-migrate`. No Gemini calls — embed_chunks is patched.
+test:
+	uv run pytest tests/ -v
