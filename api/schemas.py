@@ -39,3 +39,8 @@ class ChunkPage(BaseModel):
 
 class ErrorOut(BaseModel):
     detail: str
+
+
+class UploadResponse(BaseModel):
+    book_id: UUID
+    status: BookStatus

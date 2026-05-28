@@ -1,11 +1,19 @@
+import os
+import uuid
+from pathlib import Path
+from typing import Annotated
 from uuid import UUID
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query,
+    Response, UploadFile,
+)
 from psycopg.rows import DictRow
 
 from api.deps import get_conn
-from api.schemas import BookList, BookOut, ChunkOut, ChunkPage
+from api.schemas import BookList, BookOut, ChunkOut, ChunkPage, UploadResponse
+from services.ingest import run_ingest
 
 router = APIRouter(prefix="/books", tags=["books"])
 
@@ -14,6 +22,79 @@ _CHUNK_COLS = (
     "chunk_index, text, page_start, page_end, "
     "section_path, section_title, section_level"
 )
+
+
+def _max_upload_bytes() -> int:
+    return int(os.environ.get("MAX_UPLOAD_MB", "100")) * 1024 * 1024
+
+
+def _upload_dir() -> Path:
+    return Path(os.environ.get("UPLOAD_DIR", "uploads"))
+
+
+@router.post("/upload", response_model=UploadResponse, status_code=202)
+def upload_book(
+    background_tasks: BackgroundTasks,
+    file: Annotated[UploadFile, File()],
+    title: Annotated[str, Form()],
+    book_id: Annotated[str | None, Form()] = None,
+    conn: psycopg.Connection[DictRow] = Depends(get_conn),
+) -> UploadResponse:
+    # N10 — validate
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=422, detail="file must be application/pdf")
+    if not title.strip():
+        raise HTTPException(status_code=422, detail="title must not be empty")
+
+    # N11 — resolve book_id
+    if book_id is not None:
+        try:
+            resolved_id = uuid.UUID(book_id)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="book_id must be a UUID")
+        exists = conn.execute(
+            "SELECT 1 FROM books WHERE id = %s", (resolved_id,)
+        ).fetchone()
+        if exists is None:
+            raise HTTPException(
+                status_code=404, detail="unknown book_id; omit to create new",
+            )
+    else:
+        resolved_id = uuid.uuid4()
+
+    # N12 — persist PDF with size cap. Reject before any DB writes.
+    pdf_path = _upload_dir() / f"{resolved_id}.pdf"
+    max_bytes = _max_upload_bytes()
+    written = 0
+    with pdf_path.open("wb") as out:
+        while chunk := file.file.read(1024 * 1024):
+            written += len(chunk)
+            if written > max_bytes:
+                out.close()
+                pdf_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"file exceeds MAX_UPLOAD_MB={max_bytes // (1024 * 1024)}",
+                )
+            out.write(chunk)
+
+    # N13 — upsert + reset lifecycle fields
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO books (id, title, file_path, status, error_message) "
+            "VALUES (%s, %s, %s, 'pending', NULL) "
+            "ON CONFLICT (id) DO UPDATE SET "
+            "title = EXCLUDED.title, file_path = EXCLUDED.file_path, "
+            "status = 'pending', error_message = NULL",
+            (resolved_id, title, str(pdf_path)),
+        )
+    conn.commit()
+
+    # N14 — schedule bg ingest (runs AFTER 202 is sent)
+    background_tasks.add_task(run_ingest, resolved_id, str(pdf_path), title)
+
+    # N15 — 202
+    return UploadResponse(book_id=resolved_id, status="pending")
 
 
 @router.get("", response_model=BookList)
@@ -65,3 +146,19 @@ def get_chunks(
         items=[ChunkOut.model_validate(r) for r in rows],
         total=total, limit=limit, offset=offset,
     )
+
+
+@router.delete("/{book_id}", status_code=204)
+def delete_book(
+    book_id: UUID,
+    conn: psycopg.Connection[DictRow] = Depends(get_conn),
+) -> Response:
+    row = conn.execute(
+        "DELETE FROM books WHERE id = %s RETURNING file_path", (book_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="book not found")
+    conn.commit()
+    if row["file_path"]:
+        Path(row["file_path"]).unlink(missing_ok=True)
+    return Response(status_code=204)
