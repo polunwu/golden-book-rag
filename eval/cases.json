@@ -71,5 +71,29 @@
     "expected_page_end": 0,
     "expected_section_substring": "",
     "expected_keywords": []
+  },
+  {
+    "id": "case-10",
+    "query": "什麼是檢索增強生成？它如何減少模型幻覺？",
+    "expected_page_start": 277,
+    "expected_page_end": 278,
+    "expected_section_substring": "RAG",
+    "expected_keywords": ["retrieval-augmented generation", "hallucinate"]
+  },
+  {
+    "id": "case-11",
+    "query": "為什麼 embedding search 有時比 BM25 好",
+    "expected_page_start": 288,
+    "expected_page_end": 288,
+    "expected_section_substring": "Retrieval Algorithms",
+    "expected_keywords": ["embedding-based retrieval", "term-based retrieval"]
+  },
+  {
+    "id": "case-12",
+    "query": "向量搜尋與推薦系統有什麼關係？",
+    "expected_page_start": 286,
+    "expected_page_end": 286,
+    "expected_section_substring": "Retrieval Algorithms",
+    "expected_keywords": ["vector search", "recommendation"]
   }
 ]
