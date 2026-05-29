@@ -3,7 +3,7 @@ from typing import Callable, TypedDict
 import numpy as np
 
 from services.chunker import Chunk
-from services.embeddings import Embedding, embed_batch_call, l2_normalize, make_client
+from services.embeddings import Embedding, embed_query
 
 Retriever = Callable[[list[float], int], list[int]]
 
@@ -33,12 +33,6 @@ class EvalReport(TypedDict):
     cases: list[CaseResult]
     mean_recall_at_k: float
     mean_mrr: float
-
-
-def embed_query(text: str) -> list[float]:
-    client = make_client()
-    vec = embed_batch_call(client, [text], task_type="RETRIEVAL_QUERY")[0]
-    return l2_normalize(vec)
 
 
 def retrieve(

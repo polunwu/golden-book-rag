@@ -3,7 +3,9 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
+from services.types import ChunkBase
 
 BookStatus = Literal["pending", "processing", "ready", "failed"]
 
@@ -21,14 +23,8 @@ class BookList(BaseModel):
     items: list[BookOut]
 
 
-class ChunkOut(BaseModel):
-    chunk_index: int
-    text: str
-    page_start: int | None
-    page_end: int | None
-    section_path: list[str] | None
-    section_title: str | None
-    section_level: int | None
+class ChunkOut(ChunkBase):
+    pass
 
 
 class ChunkPage(BaseModel):
@@ -51,3 +47,26 @@ class UploadBookForm(BaseModel):
     file: UploadFile
     title: str
     book_id: str | None = None
+
+
+class SearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    k: int = Field(5, ge=1, le=20)
+
+    @field_validator("query")
+    @classmethod
+    def _non_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("query must not be blank")
+        return v
+
+
+class SearchHit(ChunkBase):
+    score: float
+
+
+class SearchResponse(BaseModel):
+    book_id: UUID
+    query: str
+    k: int
+    hits: list[SearchHit]

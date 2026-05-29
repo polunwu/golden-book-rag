@@ -8,7 +8,7 @@ from db.connection import get_connection
 from services.chunker import load_chunks
 from services.embeddings import load_embeddings
 from services.eval import print_report, retrieve, run_eval
-from services.retrieval import retrieve_pg
+from services.retrieval import search_chunks
 from services.store import ingest_book
 
 CHUNKS_PATH = "temp/chunks.json"
@@ -34,7 +34,10 @@ def main() -> None:
             counts[t] = row[0]
         print(f"ingested book {book_id}: {counts}")
 
-        report_pg = run_eval(cases, chunks, partial(retrieve_pg, conn), k=5)
+        def pg_retriever(qv: list[float], k: int) -> list[int]:
+            return [h.chunk_index for h in search_chunks(conn, BOOK_ID, qv, k)]
+
+        report_pg = run_eval(cases, chunks, pg_retriever, k=5)
         print("\n=== pgvector retrieval ===")
         print_report(report_pg)
 

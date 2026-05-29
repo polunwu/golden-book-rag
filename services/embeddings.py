@@ -126,6 +126,14 @@ def l2_normalize(vec: list[float]) -> list[float]:
     return (arr / norm).tolist()
 
 
+def embed_query(text: str) -> list[float]:
+    """Embed a search query. RETRIEVAL_QUERY task type (asymmetric vs the
+    RETRIEVAL_DOCUMENT chunks); L2-normalized so cosine distance == 1 - dot."""
+    client = make_client()
+    vec = embed_batch_call(client, [text], task_type="RETRIEVAL_QUERY")[0]
+    return l2_normalize(vec)
+
+
 def embed_chunks(chunks: list[Chunk]) -> list[Embedding]:
     _check_chunk_sizes(chunks)
     client = make_client()

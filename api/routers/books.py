@@ -13,9 +13,12 @@ from psycopg.rows import DictRow
 
 from api.deps import get_conn
 from api.schemas import (
-    BookList, BookOut, ChunkOut, ChunkPage, UploadBookForm, UploadResponse,
+    BookList, BookOut, ChunkOut, ChunkPage, SearchHit, SearchRequest,
+    SearchResponse, UploadBookForm, UploadResponse,
 )
+from services.embeddings import embed_query
 from services.ingest import run_ingest
+from services.retrieval import search_chunks
 
 router = APIRouter(prefix="/books", tags=["books"])
 
@@ -145,6 +148,37 @@ def get_chunks(
     return ChunkPage(
         items=[ChunkOut.model_validate(r) for r in rows],
         total=total, limit=limit, offset=offset,
+    )
+
+
+@router.post("/{book_id}/search", response_model=SearchResponse)
+def search_book(
+    book_id: UUID,
+    body: SearchRequest,
+    conn: psycopg.Connection[DictRow] = Depends(get_conn),
+) -> SearchResponse:
+    row = conn.execute(
+        "SELECT status FROM books WHERE id = %s", (book_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="book not found")
+    if row["status"] != "ready":
+        raise HTTPException(
+            status_code=409,
+            detail=f"book not ready for search (status={row['status']})",
+        )
+
+    query_vec = embed_query(body.query)
+    hits = search_chunks(conn, book_id, query_vec, body.k)
+    return SearchResponse(
+        book_id=book_id,
+        query=body.query,
+        k=body.k,
+        hits=[
+            # h shares ChunkBase with SearchHit; drop distance, derive score.
+            SearchHit(**h.model_dump(exclude={"distance"}), score=1.0 - h.distance)
+            for h in hits
+        ],
     )
 
 

@@ -36,10 +36,20 @@ def _fake_embed_chunks(chunks: list[Chunk]) -> list[Embedding]:
     return out
 
 
+def _fake_embed_query(text: str) -> list[float]:
+    # Matches _fake_embed_chunks' rng(chunk_index=0) → top hit is chunk_index 0.
+    rng = np.random.default_rng(0)
+    v = rng.standard_normal(EMBEDDING_DIM).astype(np.float32)
+    v /= np.linalg.norm(v)
+    return v.tolist()
+
+
 @pytest.fixture(autouse=True)
 def _no_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
+    import api.routers.books as books_mod
     import services.ingest as ingest_mod
     monkeypatch.setattr(ingest_mod, "embed_chunks", _fake_embed_chunks)
+    monkeypatch.setattr(books_mod, "embed_query", _fake_embed_query)
 
 
 @pytest.fixture(scope="session")
