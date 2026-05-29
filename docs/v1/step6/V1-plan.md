@@ -21,8 +21,9 @@ No new deps, no migration — the schema is unchanged from Step 5.
 | ------------------------------- | ------------------------------------------------------------------------------- |
 | `services/embeddings.py`        | Add `embed_query` (moved from `eval.py`)                                         |
 | `services/eval.py`              | Drop `embed_query` def; re-import it; prune now-unused imports                   |
-| `services/retrieval.py`         | Replace `retrieve_pg` with `search_chunks` + `ChunkHit`                          |
-| `api/schemas.py`                | Add `SearchRequest`, `SearchHit`, `SearchResponse`                              |
+| `services/types.py`             | Create — shared `ChunkBase` (leaf module)                                       |
+| `services/retrieval.py`         | Replace `retrieve_pg` with `search_chunks` + `ChunkHit` (extends `ChunkBase`)   |
+| `api/schemas.py`                | Import `ChunkBase`; refactor `ChunkOut` onto it; add `SearchRequest`, `SearchHit`, `SearchResponse` |
 | `api/routers/books.py`          | Add `POST /{book_id}/search` handler + imports                                  |
 | `scripts/store_pdf_inspect.py`  | Rewire eval `Retriever` onto `search_chunks`; drop `retrieve_pg`                |
 | `tests/conftest.py`             | Stub `api.routers.books.embed_query`                                            |
@@ -82,22 +83,17 @@ from services.embeddings import Embedding, embed_query  # embed_query re-exporte
 
 ---
 
-## 3. `services/retrieval.py` — `search_chunks` replaces `retrieve_pg`
+## 3a. `services/types.py` — shared `ChunkBase` (new file)
 
-Full file rewrite. `retrieve_pg` is deleted (A2); `search_chunks` is the single
-pgvector retriever, book-scoped, returning rows rich enough for both the API
-response (A4/N6) and the eval shim (A6).
+The 7 chunk fields live here once. It's a leaf module (only `pydantic`), so both
+`services/retrieval.py` (`ChunkHit`) and `api/schemas.py` (`ChunkOut`,
+`SearchHit`) can import it — dependency runs api → services, never the reverse.
 
 ```python
-from typing import TypedDict
-from uuid import UUID
-
-import numpy as np
-import psycopg
-from psycopg.rows import dict_row
+from pydantic import BaseModel
 
 
-class ChunkHit(TypedDict):
+class ChunkBase(BaseModel):
     chunk_index: int
     text: str
     page_start: int | None
@@ -105,6 +101,32 @@ class ChunkHit(TypedDict):
     section_path: list[str] | None
     section_title: str | None
     section_level: int | None
+```
+
+---
+
+## 3. `services/retrieval.py` — `search_chunks` replaces `retrieve_pg`
+
+Full file rewrite. `retrieve_pg` is deleted (A2); `search_chunks` is the single
+pgvector retriever, book-scoped, returning rows rich enough for both the API
+response (A4/N6) and the eval shim (A6).
+
+`ChunkHit` reuses the shared `ChunkBase` (`services/types.py`, §3a) so the chunk
+fields live in exactly one place — it only adds `distance`. The base sits in a
+neutral module that both the service and `api.schemas` import, so the dependency
+runs api → services, never the reverse.
+
+```python
+from uuid import UUID
+
+import numpy as np
+import psycopg
+from psycopg.rows import dict_row
+
+from services.types import ChunkBase
+
+
+class ChunkHit(ChunkBase):
     distance: float
 
 
@@ -136,19 +158,9 @@ def search_chunks(
             "LIMIT %s",
             (qv, book_id, qv, k),
         ).fetchall()
-    return [
-        ChunkHit(
-            chunk_index=r["chunk_index"],
-            text=r["text"],
-            page_start=r["page_start"],
-            page_end=r["page_end"],
-            section_path=r["section_path"],
-            section_title=r["section_title"],
-            section_level=r["section_level"],
-            distance=float(r["distance"]),
-        )
-        for r in rows
-    ]
+    # dict_row keys match ChunkHit's fields 1:1; model_validate coerces
+    # distance to float — no manual field listing.
+    return [ChunkHit.model_validate(r) for r in rows]
 ```
 
 Notes:
@@ -165,11 +177,25 @@ Notes:
 
 ## 4. `api/schemas.py` — search models
 
-Add after `UploadBookForm`. Needs `Field` + `field_validator`:
+Add after `UploadBookForm`. Needs `Field` + `field_validator`, plus the shared
+base from `services.types`:
 
 ```python
 from pydantic import BaseModel, Field, field_validator
+
+from services.types import ChunkBase
 ```
+
+Also refactor the existing `ChunkOut` onto the shared `ChunkBase` (§3a) so the 7
+chunk fields are defined once and reused by `ChunkOut` (browse), `SearchHit`
+(search out), and `ChunkHit` (retrieval layer, §3):
+
+```python
+class ChunkOut(ChunkBase):
+    pass
+```
+
+The search models (`ChunkOut`/`ChunkPage` keep their current position):
 
 ```python
 class SearchRequest(BaseModel):
@@ -184,14 +210,7 @@ class SearchRequest(BaseModel):
         return v
 
 
-class SearchHit(BaseModel):
-    chunk_index: int
-    text: str
-    page_start: int | None
-    page_end: int | None
-    section_path: list[str] | None
-    section_title: str | None
-    section_level: int | None
+class SearchHit(ChunkBase):
     score: float
 
 
@@ -249,16 +268,8 @@ def search_book(
         query=body.query,
         k=body.k,
         hits=[
-            SearchHit(
-                chunk_index=h["chunk_index"],
-                text=h["text"],
-                page_start=h["page_start"],
-                page_end=h["page_end"],
-                section_path=h["section_path"],
-                section_title=h["section_title"],
-                section_level=h["section_level"],
-                score=1.0 - h["distance"],
-            )
+            # h shares ChunkBase with SearchHit; drop distance, derive score.
+            SearchHit(**h.model_dump(exclude={"distance"}), score=1.0 - h.distance)
             for h in hits
         ],
     )
@@ -299,7 +310,7 @@ Inside `main()`, replace the `report_pg` line:
         print(f"ingested book {book_id}: {counts}")
 
         def pg_retriever(qv: list[float], k: int) -> list[int]:
-            return [h["chunk_index"] for h in search_chunks(conn, BOOK_ID, qv, k)]
+            return [h.chunk_index for h in search_chunks(conn, BOOK_ID, qv, k)]
 
         report_pg = run_eval(cases, chunks, pg_retriever, k=5)
         print("\n=== pgvector retrieval ===")
