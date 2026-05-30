@@ -134,3 +134,9 @@ CREATE TABLE retrieval_eval_results (
 Archived: merged into `bookrag_mvp_architecture.md`.
 
 FastAPI is recommended for the BookRAG MVP because its typed API design, built-in validation, automatic documentation, and async support make it a better fit for modern AI/RAG backend architectures than Flask.
+
+# 5. Thinking Budget
+
+Current -> 0
+
+Evaluate retrieval before reasoning. Keep reasoning effort minimal during MVP development to expose retrieval weaknesses and obtain reliable Recall@K and MRR measurements. Increase reasoning only after retrieval performance is validated.
