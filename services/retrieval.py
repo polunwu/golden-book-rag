@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 import numpy as np
@@ -12,7 +13,7 @@ class ChunkHit(ChunkBase):
 
 
 def search_chunks(
-    conn: psycopg.Connection,
+    conn: psycopg.Connection[Any],
     book_id: UUID,
     query_vec: list[float],
     k: int = 5,
