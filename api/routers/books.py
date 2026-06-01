@@ -13,10 +13,11 @@ from psycopg.rows import DictRow
 
 from api.deps import get_conn
 from api.schemas import (
-    BookList, BookOut, ChunkOut, ChunkPage, SearchHit, SearchRequest,
-    SearchResponse, UploadBookForm, UploadResponse,
+    AskRequest, AskResponse, BookList, BookOut, ChunkOut, ChunkPage, Citation,
+    SearchHit, SearchRequest, SearchResponse, UploadBookForm, UploadResponse,
 )
 from services.embeddings import embed_query
+from services.generate import generate_answer, refusal_text, should_refuse
 from services.ingest import run_ingest
 from services.retrieval import search_chunks
 
@@ -35,6 +36,10 @@ def _max_upload_bytes() -> int:
 
 def _upload_dir() -> Path:
     return Path(os.environ.get("UPLOAD_DIR", "uploads"))
+
+
+def _score_floor() -> float:
+    return float(os.environ.get("ASK_SCORE_FLOOR", "0.6"))
 
 
 @router.post("/upload", response_model=UploadResponse, status_code=202)
@@ -179,6 +184,44 @@ def search_book(
             SearchHit(**h.model_dump(exclude={"distance"}), score=1.0 - h.distance)
             for h in hits
         ],
+    )
+
+
+@router.post("/{book_id}/ask", response_model=AskResponse)
+def ask_book(
+    book_id: UUID,
+    body: AskRequest,
+    conn: psycopg.Connection[DictRow] = Depends(get_conn),
+) -> AskResponse:
+    row = conn.execute(
+        "SELECT status FROM books WHERE id = %s", (book_id,)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="book not found")
+    if row["status"] != "ready":
+        raise HTTPException(
+            status_code=409,
+            detail=f"book not ready for ask (status={row['status']})",
+        )
+
+    query_vec = embed_query(body.query)
+    hits = search_chunks(conn, book_id, query_vec, body.k)
+
+    if should_refuse(hits, _score_floor()):
+        return AskResponse(
+            book_id=book_id, query=body.query, k=body.k,
+            answer=refusal_text(body.query), refused=True, citations=[],
+        )
+
+    answer = generate_answer(body.query, hits)
+    citations = [
+        # h shares ChunkBase with Citation; drop distance, add marker + score.
+        Citation(**h.model_dump(exclude={"distance"}), marker=i, score=1.0 - h.distance)
+        for i, h in enumerate(hits, start=1)
+    ]
+    return AskResponse(
+        book_id=book_id, query=body.query, k=body.k,
+        answer=answer, refused=False, citations=citations,
     )
 
 

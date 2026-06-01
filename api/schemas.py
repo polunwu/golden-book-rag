@@ -70,3 +70,21 @@ class SearchResponse(BaseModel):
     query: str
     k: int
     hits: list[SearchHit]
+
+
+class AskRequest(SearchRequest):
+    pass
+
+
+class Citation(ChunkBase):
+    marker: int
+    score: float
+
+
+class AskResponse(BaseModel):
+    book_id: UUID
+    query: str
+    k: int
+    answer: str
+    refused: bool
+    citations: list[Citation]
