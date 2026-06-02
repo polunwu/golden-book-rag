@@ -122,7 +122,23 @@ if the bands ever tighten), but is unwarranted given this gap. **Re-measure both
 bands if corpus / embedding model / task_type changes** (carried from Step 6's
 caveat) — the absolute numbers, and therefore the safe floor, will shift.
 
-### F2 — Soft refusal isn't language-matched and isn't flagged
+### F2 — Soft refusal isn't language-matched and isn't flagged (RESOLVED 2026-06-02)
+
+**Resolved** via structured-output refusal (the Shape B option flagged below).
+`generate_answer` now returns a typed `GroundedAnswer{can_answer, answer}` instead
+of free-form prose; the model sets `can_answer=false` when the excerpts are
+insufficient rather than writing its own "not enough info" sentence. Both refusal
+gates (pre-LLM floor + model-side `can_answer=false`) converge in a single
+`decide_answer(query, hits, floor) -> AnswerResult` in `services/generate.py`, and
+the handler is now HTTP-only. Hard and soft refusals share one contract:
+`refused=true ⇒ citations=[] ⇒ answer = language-matched `refusal_text(query)``.
+So (a) a ZH soft refusal returns the Chinese refusal string (deterministic, not
+the model's English prose), and (b) a soft refusal reports `refused=true` with no
+citations — a consumer can no longer mistake a model decline for a grounded
+answer. Covered by `tests/test_ask.py::test_ask_soft_refusal_language_matched`.
+**Caveat:** the live `can_answer=false → ZH refusal` path is unit-tested with a
+stub; the real-Gemini structured-output path (response_schema + thinking OFF) was
+not re-curled — re-verify on the next smoke. Original finding below.
 
 When F1 lets an OOS query through the floor, `generate_answer` runs and the
 model obeys its "say so plainly" rule — but the ZH pasta query produced an
@@ -139,8 +155,9 @@ citations attached** to a non-answer. Two gaps:
   refusal (Shape B) or a post-generation refusal classifier would close this;
   out of V1 scope.
 
-Both F1 and F2 are floor-calibration / generation-quality issues, not handler
-bugs — the wiring is correct.
+Both F1 and F2 were floor-calibration / generation-quality issues, not handler
+bugs — the wiring was correct. Both are now fixed in-repo (F1: floor 0.55→0.60;
+F2: structured-output refusal + single `decide_answer` gate).
 
 ## What looks right
 
@@ -202,7 +219,10 @@ gating (404/409/422) and hard refusal (no-LLM short-circuit) verified; language
 mirror works on the grounded path. **F1 fixed in-step: `ASK_SCORE_FLOOR` raised
 0.55 → 0.60** after a 12-case + 3-OOS sweep showed a clean ~0.10 gap (OOS ≤0.559,
 genuine ≥0.662); 0.60 catches the ZH-OOS leak with margin on both sides. **F2
-remains (out of V1 scope): a query that still clears the floor can produce a
-non-language-matched soft refusal reported as `refused=false` + citations** —
-wants structured-output refusal or a relevance classifier in Step 8, alongside
-answer-quality eval, before this is production-trust.
+fixed in-step (2026-06-02): structured-output refusal (`GroundedAnswer
+{can_answer, answer}`) + a single `decide_answer` gate** — soft and hard refusals
+now share one contract (`refused=true ⇒ citations=[] ⇒ language-matched
+message`), so a model decline can no longer masquerade as a grounded answer.
+Remaining Step 8 follow-up is answer-quality / faithfulness eval (see Not
+Validated) and re-curling the live structured-output refusal path before
+production-trust.

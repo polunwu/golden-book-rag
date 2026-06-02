@@ -1,6 +1,8 @@
 import os
+from dataclasses import dataclass
 
 from google.genai import types
+from pydantic import BaseModel
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from services.embeddings import _is_cjk, _is_retryable, make_client
@@ -8,13 +10,37 @@ from services.retrieval import ChunkHit
 
 SYSTEM_INSTRUCTION = (
     "You answer questions strictly from the provided book excerpts.\n"
-    "Rules:\n"
+    "Return JSON matching the schema. Set can_answer=false when the excerpts do\n"
+    "not contain enough information to answer the question, and leave answer empty\n"
+    "— do NOT write a 'not enough information' sentence yourself. Otherwise set\n"
+    "can_answer=true and put the grounded answer in answer.\n"
+    "Rules for answer when can_answer=true:\n"
     "- Use ONLY the information in the numbered excerpts. Do not use outside knowledge.\n"
     "- Support each claim with inline citation markers like [1], [2] referring to the excerpt numbers.\n"
-    "- If the excerpts do not contain enough information to answer, say so plainly.\n"
     "- Answer in the same language as the question.\n"
     "- Be concise and direct."
 )
+
+
+class GroundedAnswer(BaseModel):
+    """Structured model verdict. `can_answer=False` is the model-side soft refusal
+    (excerpts retrieved but insufficient) — distinct from the pre-LLM floor refusal.
+    Replaces free-form 'say so plainly' prose so the refusal is a reliable, typed
+    signal rather than something the caller has to detect from the answer text."""
+
+    can_answer: bool
+    answer: str
+
+
+@dataclass
+class AnswerResult:
+    """The /ask outcome after both refusal gates. On refusal `answer` is the
+    language-matched refusal string and `cite_hits` is empty, so hard and soft
+    refusals share one contract."""
+
+    refused: bool
+    answer: str
+    cite_hits: list[ChunkHit]
 
 
 def _gen_model() -> str:
@@ -76,9 +102,10 @@ def _format_context(hits: list[ChunkHit]) -> str:
     retry=retry_if_exception(_is_retryable),
     reraise=True,
 )
-def generate_answer(query: str, hits: list[ChunkHit]) -> str:
+def generate_answer(query: str, hits: list[ChunkHit]) -> GroundedAnswer:
     """Single-shot grounded generation over the retrieved hits. Caller guarantees
-    `hits` is non-empty and above the refusal floor."""
+    `hits` is non-empty and above the refusal floor. Returns a structured verdict:
+    `can_answer=False` is the model-side soft refusal."""
     client = make_client()
     contents = f"{_format_context(hits)}\n\nQuestion: {query}"
     resp = client.models.generate_content(
@@ -89,8 +116,26 @@ def generate_answer(query: str, hits: list[ChunkHit]) -> str:
             temperature=0,
             max_output_tokens=_max_output_tokens(),
             thinking_config=types.ThinkingConfig(thinking_budget=_thinking_budget()),
+            response_mime_type="application/json",
+            response_schema=GroundedAnswer,
         ),
     )
-    if not resp.text:
-        raise RuntimeError("Gemini returned no answer text")
-    return resp.text.strip()
+    parsed = resp.parsed
+    if not isinstance(parsed, GroundedAnswer):
+        raise RuntimeError("Gemini returned no structured answer")
+    parsed.answer = parsed.answer.strip()
+    return parsed
+
+
+def decide_answer(query: str, hits: list[ChunkHit], floor: float) -> AnswerResult:
+    """Single decision point for /ask: applies both refusal gates and picks the
+    response text. Gate 1 (cheap, no LLM): retrieval below `floor`. Gate 2: the
+    model judged the excerpts insufficient (can_answer=False). Either gate -> a
+    language-matched refusal with no citations, so hard and soft refusals share one
+    contract (refused=True => citations=[] => message in the query's language)."""
+    if should_refuse(hits, floor):
+        return AnswerResult(refused=True, answer=refusal_text(query), cite_hits=[])
+    g = generate_answer(query, hits)
+    if not g.can_answer:
+        return AnswerResult(refused=True, answer=refusal_text(query), cite_hits=[])
+    return AnswerResult(refused=False, answer=g.answer, cite_hits=hits)

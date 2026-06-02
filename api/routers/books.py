@@ -17,7 +17,7 @@ from api.schemas import (
     SearchHit, SearchRequest, SearchResponse, UploadBookForm, UploadResponse,
 )
 from services.embeddings import embed_query
-from services.generate import generate_answer, refusal_text, should_refuse
+from services.generate import decide_answer
 from services.ingest import run_ingest
 from services.retrieval import search_chunks
 
@@ -207,21 +207,15 @@ def ask_book(
     query_vec = embed_query(body.query)
     hits = search_chunks(conn, book_id, query_vec, body.k)
 
-    if should_refuse(hits, _score_floor()):
-        return AskResponse(
-            book_id=book_id, query=body.query, k=body.k,
-            answer=refusal_text(body.query), refused=True, citations=[],
-        )
-
-    answer = generate_answer(body.query, hits)
+    result = decide_answer(body.query, hits, _score_floor())
     citations = [
         # h shares ChunkBase with Citation; drop distance, add marker + score.
         Citation(**h.model_dump(exclude={"distance"}), marker=i, score=1.0 - h.distance)
-        for i, h in enumerate(hits, start=1)
+        for i, h in enumerate(result.cite_hits, start=1)
     ]
     return AskResponse(
         book_id=book_id, query=body.query, k=body.k,
-        answer=answer, refused=False, citations=citations,
+        answer=result.answer, refused=result.refused, citations=citations,
     )
 
 

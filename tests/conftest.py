@@ -44,20 +44,26 @@ def _fake_embed_query(text: str) -> list[float]:
     return v.tolist()
 
 
-def _fake_generate_answer(query: str, hits: list) -> str:
-    # Deterministic, no network. Emits an inline marker so citation wiring is
-    # exercised; mirrors the query language loosely (test asserts structure,
-    # not phrasing).
-    return f"Stub answer for {query!r}, grounded in the excerpts [1]."
+def _fake_generate_answer(query: str, hits: list):
+    # Deterministic, no network. can_answer=True with an inline marker so citation
+    # wiring is exercised; test asserts structure, not phrasing.
+    from services.generate import GroundedAnswer
+    return GroundedAnswer(
+        can_answer=True,
+        answer=f"Stub answer for {query!r}, grounded in the excerpts [1].",
+    )
 
 
 @pytest.fixture(autouse=True)
 def _no_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
     import api.routers.books as books_mod
+    import services.generate as generate_mod
     import services.ingest as ingest_mod
     monkeypatch.setattr(ingest_mod, "embed_chunks", _fake_embed_chunks)
     monkeypatch.setattr(books_mod, "embed_query", _fake_embed_query)
-    monkeypatch.setattr(books_mod, "generate_answer", _fake_generate_answer)
+    # decide_answer (called by the handler) resolves generate_answer in its own
+    # module, so stub the network boundary there — not on books_mod.
+    monkeypatch.setattr(generate_mod, "generate_answer", _fake_generate_answer)
 
 
 @pytest.fixture(scope="session")

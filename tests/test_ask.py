@@ -2,7 +2,9 @@
 
 Gemini is stubbed (conftest._no_gemini): _fake_embed_query == chunk_index 0's
 stored vector (top hit, distance ~0 -> score ~1.0), and generate_answer returns
-a fixed cited string. Refusal is forced by raising ASK_SCORE_FLOOR above 1.0.
+a GroundedAnswer(can_answer=True, ...). Hard refusal is forced by raising
+ASK_SCORE_FLOOR above 1.0; soft refusal by stubbing generate_answer to
+can_answer=False.
 """
 from __future__ import annotations
 
@@ -71,9 +73,9 @@ def test_ask_grounded_200(client, book_ids):
 
 def test_ask_refusal_floor_no_generation(client, book_ids, monkeypatch):
     """Floor above 1.0 forces refusal; generation must NOT be called."""
-    import api.routers.books as books_mod
+    import services.generate as generate_mod
     spy = Mock(side_effect=AssertionError("generate_answer must not be called"))
-    monkeypatch.setattr(books_mod, "generate_answer", spy)
+    monkeypatch.setattr(generate_mod, "generate_answer", spy)
     monkeypatch.setenv("ASK_SCORE_FLOOR", "1.5")
 
     bid = _ready_book(client, book_ids)
@@ -84,3 +86,23 @@ def test_ask_refusal_floor_no_generation(client, book_ids, monkeypatch):
     assert body["citations"] == []
     assert body["answer"]  # language-matched refusal string
     spy.assert_not_called()
+
+
+def test_ask_soft_refusal_language_matched(client, book_ids, monkeypatch):
+    """Retrieval clears the floor but the model judges the excerpts insufficient
+    (can_answer=False): same contract as the hard refusal — refused=True, no
+    citations, message in the query's language (here Chinese), NOT the model's
+    own (English) prose."""
+    import services.generate as generate_mod
+    from services.generate import GroundedAnswer
+    monkeypatch.setattr(
+        generate_mod, "generate_answer",
+        lambda query, hits: GroundedAnswer(can_answer=False, answer=""),
+    )
+    bid = _ready_book(client, book_ids)
+    resp = client.post(f"/books/{bid}/ask", json={"query": "如何煮義大利麵？", "k": 5})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["refused"] is True
+    assert body["citations"] == []
+    assert any("一" <= ch <= "鿿" for ch in body["answer"])
