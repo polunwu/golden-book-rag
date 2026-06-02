@@ -58,7 +58,7 @@ Base path: `/books`. Status enum: `pending | processing | ready | failed`.
 | `GET` | `/books/{id}` | — | `BookOut` | poll this for status |
 | `GET` | `/books/{id}/chunks` | `?limit=50&offset=0` | `{items, total, limit, offset}` | browse parsed chunks |
 | `POST` | `/books/{id}/search` | `{query, k}` | `{hits: SearchHit[]}` | `409` if not `ready` |
-| `POST` | `/books/{id}/ask` | `{query, k}` | `{answer, refused, citations[]}` | `409` if not `ready` |
+| `POST` | `/books/{id}/ask` | `{query, k}` `?retrieve=true` | `{answer, refused, citations[]}` | `409` if not `ready`. `?retrieve=false` → no-retrieval baseline: plain-LLM answer, `refused=false`, `citations=[]`, skips the ready gate |
 | `DELETE` | `/books/{id}` | — | `204` | also deletes the PDF |
 
 ### Key response shapes
@@ -127,39 +127,40 @@ Source passage (chunk text + page range + section breadcrumb)
 - "Upload book" entry point
 - Empty state when no books
 
-### 2. Upload (modal or `/upload`)
-- File picker (accept `application/pdf`), title field
-- `POST /books/upload` → on `202`, drop the new book into the library as `pending`
-- Client-side guard against oversized files before the 413 round-trips
-- Surface 413 / 422 errors inline
-
-### 3. Processing / status
-- Poll `GET /books/{id}` until `ready` or `failed`
-- Status badge component: `pending`, `processing` (spinner), `ready` (enabled), `failed` (show `error_message`, offer re-upload)
-- Disable ask/search until `ready` (mirrors backend `409`)
-
-### 4. Book page (`/books/{id}`)
+### 2. Book page (`/books/{id}`)
 - Header: title, status, page/chunk count, delete
 - Primary: **Ask** panel
 - Secondary tab: **Browse chunks** (`GET /books/{id}/chunks`, paginated)
 
-### 5. Ask panel
+### 3. Ask panel
 - Question input + optional `k` control (default 5; backend allows 1–20)
 - `POST /books/{id}/ask`
 - Render `answer` with clickable `[n]` markers that scroll to / open the matching citation
 - Citations list: marker, section breadcrumb (`section_path`), page range, score, expandable chunk text
 - Refusal state styling when `refused`
 - Loading + error (incl. `409 not ready`) states
+- Success criteria: can see the answer produced *with* RAG retrieval and the answer produced *without* the retrieval process (plain LLM), side by side for comparison
 
-### 6. Search (optional for v1, same plumbing as Ask)
+### 4. Search (optional for v1, same plumbing as Ask)
 - Reuse the query box → `POST /books/{id}/search` → ranked `SearchHit` list
 - Lets us validate retrieval visually before/independently of LLM answers
 - Could ship as a "Sources" toggle rather than a separate screen
 
-### 7. Chunk browser
+### 5. Chunk browser
 - Paginated table/list of `ChunkOut`
 - Columns: index, page range, section breadcrumb, text preview
 - Useful for debugging ingestion quality
+
+### 6. Upload (modal or `/upload`)
+- File picker (accept `application/pdf`), title field
+- `POST /books/upload` → on `202`, drop the new book into the library as `pending`
+- Client-side guard against oversized files before the 413 round-trips
+- Surface 413 / 422 errors inline
+
+### 7. Processing / status
+- Poll `GET /books/{id}` until `ready` or `failed`
+- Status badge component: `pending`, `processing` (spinner), `ready` (enabled), `failed` (show `error_message`, offer re-upload)
+- Disable ask/search until `ready` (mirrors backend `409`)
 
 ---
 
@@ -184,9 +185,9 @@ Numbering continues from the backend MVP, which finished at Step 7.
 Step 8   Foundation   typed API client, zod schemas, layout shell, env config
 Step 9   Library      list books, status badges, empty state
 Step 10  Ask          ask panel, answer rendering, citations, refusal state
-Step 11  Upload       upload form, optimistic pending card, error handling
-Step 12  Status       polling hook, processing/failed UX, re-upload
-Step 13  Sources      chunk browser + (optional) raw search view
+Step 11  Sources      chunk browser + (optional) raw search view
+Step 12  Upload       upload form, optimistic pending card, error handling
+Step 13  Status       polling hook, processing/failed UX, re-upload
 Step 14  Delete       delete book + confirm
 ```
 

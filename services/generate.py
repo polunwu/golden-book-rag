@@ -8,6 +8,12 @@ from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponen
 from services.embeddings import _is_cjk, _is_retryable, make_client
 from services.retrieval import ChunkHit
 
+PLAIN_SYSTEM_INSTRUCTION = (
+    "You are a knowledgeable assistant. Answer the question directly from your\n"
+    "own general knowledge — no book excerpts are provided, so do NOT cite.\n"
+    "Answer in the same language as the question. Be concise and direct."
+)
+
 SYSTEM_INSTRUCTION = (
     "You answer questions strictly from the provided book excerpts.\n"
     "Return JSON matching the schema. Set can_answer=false when the excerpts do\n"
@@ -125,6 +131,34 @@ def generate_answer(query: str, hits: list[ChunkHit]) -> GroundedAnswer:
         raise RuntimeError("Gemini returned no structured answer")
     parsed.answer = parsed.answer.strip()
     return parsed
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=1, max=30),
+    retry=retry_if_exception(_is_retryable),
+    reraise=True,
+)
+def generate_plain_answer(query: str) -> str:
+    """No-retrieval baseline: answer from the model's own knowledge, with no book
+    context and no citations. Lets the UI compare a RAG-grounded answer against a
+    plain-LLM answer for the same question. Never refuses — there is no floor and
+    no excerpts to judge."""
+    client = make_client()
+    resp = client.models.generate_content(
+        model=_gen_model(),
+        contents=query,
+        config=types.GenerateContentConfig(
+            system_instruction=PLAIN_SYSTEM_INSTRUCTION,
+            temperature=0,
+            max_output_tokens=_max_output_tokens(),
+            thinking_config=types.ThinkingConfig(thinking_budget=_thinking_budget()),
+        ),
+    )
+    text = resp.text
+    if text is None:
+        raise RuntimeError("Gemini returned no answer")
+    return text.strip()
 
 
 def decide_answer(query: str, hits: list[ChunkHit], floor: float) -> AnswerResult:

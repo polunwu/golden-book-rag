@@ -69,6 +69,45 @@ def test_ask_grounded_200(client, book_ids):
     assert "text" in cites[0] and "page_start" in cites[0]
 
 
+# --- no-retrieval baseline ----------------------------------------------
+
+def test_ask_no_retrieval_200(client, book_ids):
+    """retrieve=false → plain LLM answer, never refused, no citations, and the
+    RAG path (embedding + retrieval) is skipped entirely."""
+    import api.routers.books as books_mod
+    spy = Mock(side_effect=AssertionError("embed_query must not be called"))
+
+    bid = _ready_book(client, book_ids)
+    # Patch after _ready_book so ingestion's own embedding is untouched.
+    import pytest
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(books_mod, "embed_query", spy)
+        resp = client.post(
+            f"/books/{bid}/ask", params={"retrieve": "false"},
+            json={"query": "anything", "k": 5},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["refused"] is False
+    assert body["citations"] == []
+    assert body["answer"]  # plain stub answer
+    spy.assert_not_called()
+
+
+def test_ask_no_retrieval_skips_ready_gate(client, book_ids):
+    """retrieve=false answers even when the book is not ready — it never touches
+    the book's chunks, so the 409 ready gate does not apply."""
+    resp = upload(client, book_ids, content=b"", title="broken")  # -> failed
+    assert resp.status_code == 202
+    bid = book_ids[-1]
+    assert client.get(f"/books/{bid}").json()["status"] == "failed"
+    resp = client.post(
+        f"/books/{bid}/ask", params={"retrieve": "false"}, json={"query": "x"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["refused"] is False
+
+
 # --- refusal floor ------------------------------------------------------
 
 def test_ask_refusal_floor_no_generation(client, book_ids, monkeypatch):

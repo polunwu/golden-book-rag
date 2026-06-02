@@ -54,6 +54,11 @@ def _fake_generate_answer(query: str, hits: list):
     )
 
 
+def _fake_generate_plain_answer(query: str) -> str:
+    # No-retrieval baseline; deterministic, no network.
+    return f"Plain stub answer for {query!r} (no retrieval)."
+
+
 @pytest.fixture(autouse=True)
 def _no_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
     import api.routers.books as books_mod
@@ -64,6 +69,9 @@ def _no_gemini(monkeypatch: pytest.MonkeyPatch) -> None:
     # decide_answer (called by the handler) resolves generate_answer in its own
     # module, so stub the network boundary there — not on books_mod.
     monkeypatch.setattr(generate_mod, "generate_answer", _fake_generate_answer)
+    # generate_plain_answer is called directly by the handler, so stub the name
+    # bound in books_mod (the no-retrieval path).
+    monkeypatch.setattr(books_mod, "generate_plain_answer", _fake_generate_plain_answer)
 
 
 @pytest.fixture(scope="session")

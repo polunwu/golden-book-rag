@@ -17,7 +17,7 @@ from api.schemas import (
     SearchHit, SearchRequest, SearchResponse, UploadBookForm, UploadResponse,
 )
 from services.embeddings import embed_query
-from services.generate import decide_answer
+from services.generate import decide_answer, generate_plain_answer
 from services.ingest import run_ingest
 from services.retrieval import search_chunks
 
@@ -191,6 +191,7 @@ def search_book(
 def ask_book(
     book_id: UUID,
     body: AskRequest,
+    retrieve: bool = Query(True),
     conn: psycopg.Connection[DictRow] = Depends(get_conn),
 ) -> AskResponse:
     row = conn.execute(
@@ -198,6 +199,16 @@ def ask_book(
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="book not found")
+
+    if not retrieve:
+        # No-retrieval baseline: plain LLM, no book context, no citations. Skips
+        # the ready gate — it never touches the book's chunks.
+        answer = generate_plain_answer(body.query)
+        return AskResponse(
+            book_id=book_id, query=body.query, k=body.k,
+            answer=answer, refused=False, citations=[],
+        )
+
     if row["status"] != "ready":
         raise HTTPException(
             status_code=409,
