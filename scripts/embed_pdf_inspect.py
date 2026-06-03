@@ -1,4 +1,4 @@
-"""Step 3 debug: embed chunks, save, run eval."""
+"""Debug spike: embed chunks, save, run eval."""
 import json
 from functools import partial
 from pathlib import Path

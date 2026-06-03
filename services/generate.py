@@ -62,7 +62,7 @@ def _thinking_budget() -> int:
     # max_output_tokens. Default 0 = thinking OFF — this is extractive grounded
     # RAG (shallow reasoning), so the full output budget goes to the answer.
     # Raise (and raise ASK_MAX_OUTPUT_TOKENS above it) if cross-chunk synthesis
-    # answers degrade — see Step 8 hand-off.
+    # answers degrade.
     return int(os.environ.get("ASK_THINKING_BUDGET", "0"))
 
 

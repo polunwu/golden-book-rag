@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Providers } from "./providers";
 import "./globals.css";
 
-// D10 — non-indexed app-wide: robots noindex/nofollow propagates to every route
+// Non-indexed app-wide: robots noindex/nofollow propagates to every route
 // from the root layout. Cheap crawler deterrent, NOT access control (auth is the
 // real gate). Paired with app/robots.ts.
 export const metadata: Metadata = {
@@ -11,8 +11,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// N1 — root layout: chrome (header/nav) + the App Router <Outlet> equivalent
-// ({children}), wrapped in the client Providers boundary. Every route nests here.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

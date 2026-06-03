@@ -4,9 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
 
-// N2 — one QueryClient per browser session. useState (not a module singleton) so
-// each client gets its own instance and it survives re-renders. Mounted in the
-// root layout.
+// One QueryClient per browser session. useState (not a module singleton) so
+// each client gets its own instance and it survives re-renders.
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
   return (

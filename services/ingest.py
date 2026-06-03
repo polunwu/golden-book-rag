@@ -1,7 +1,7 @@
 """Background ingest orchestrator. Owns books.status lifecycle.
 
 Pure sync code (ingest_pdf) wrapped in an async thread-offload (run_ingest).
-Imported by api/routers/books.py — must NOT import from api.* (R3.2).
+Imported by api/routers/books.py — must NOT import from api.*.
 """
 import logging
 import uuid

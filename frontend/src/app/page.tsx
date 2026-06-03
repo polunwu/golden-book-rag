@@ -5,8 +5,8 @@ import { listBooks } from "../api/books";
 import { Loading } from "../components/Loading";
 import { ErrorState } from "../components/ErrorState";
 
-// A7 — the connectivity smoke. Proves env → client → generated-zod → render
-// end-to-end against the live backend. (No Library grid — that's Step 9.)
+// The connectivity smoke. Proves env → client → zod-parse → render
+// end-to-end against the live backend.
 export default function Home() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["books"],

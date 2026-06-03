@@ -31,8 +31,8 @@ def ingest_book(
       3. INSERT chunks + chunk_embeddings for this book
 
     Idempotent per book_id. Does NOT touch other books' rows. Does NOT write
-    books.status — V3's orchestrator owns the pending/processing/ready/failed
-    lifecycle; V1 callers leave status at its default ('pending').
+    books.status — the ingest orchestrator owns the pending/processing/ready/failed
+    lifecycle; callers here leave status at its default ('pending').
     """
     _assert_index_parity(chunks, embeddings)
     id_by_index = {c["chunk_index"]: uuid.uuid4() for c in chunks}

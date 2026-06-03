@@ -41,7 +41,7 @@ def get_pool() -> ConnectionPool:
 
 
 def get_connection() -> psycopg.Connection:
-    """Single-connection accessor for scripts. Unchanged from Step 4 / V1."""
+    """Single-connection accessor for scripts."""
     conn = psycopg.connect(_database_url())
     register_vector(conn)
     return conn

@@ -1,4 +1,4 @@
-// Placeholder route (Step 10+). Registered now so the shell + routing are real.
+// Placeholder route — registered so the shell + routing are real.
 // Server component; params is a Promise in the App Router.
 export default async function BookDetail({
   params,

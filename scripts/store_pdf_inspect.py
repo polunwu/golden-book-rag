@@ -1,4 +1,4 @@
-"""Step 4 debug, V1-flavoured: load via ingest_book (fixed book_id), parity-check."""
+"""Debug spike: load via ingest_book (fixed book_id), parity-check."""
 import json
 import uuid
 from functools import partial
@@ -44,7 +44,7 @@ def main() -> None:
     report_mem = run_eval(cases, chunks, partial(retrieve, embeddings), k=5)
     print("\n=== in-memory retrieval (parity reference) ===")
     print_report(report_mem)
-    print("\nStep 3 baseline: Hit 8/8, Recall@5 0.590, MRR 0.729")
+    print("\nbaseline: Hit 8/8, Recall@5 0.590, MRR 0.729")
 
 
 if __name__ == "__main__":
