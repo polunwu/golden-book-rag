@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-shell db-reset db-status db-migrate db-migrate-down api-dev test
+.PHONY: db-up db-down db-logs db-shell db-reset db-status db-migrate db-migrate-down api-dev test web
 
 db-up:
 	docker compose up -d
@@ -34,3 +34,7 @@ api-dev:
 # Needs `make db-up` + `make db-migrate`. No Gemini calls — embed_chunks is patched.
 test:
 	uv run pytest tests/ -v
+
+# Frontend dev server (Next.js). Run alongside `make api-dev` (uvicorn) in another shell.
+web:
+	cd frontend && yarn dev
