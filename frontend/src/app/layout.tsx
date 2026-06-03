@@ -7,7 +7,7 @@ import "./globals.css";
 // from the root layout. Cheap crawler deterrent, NOT access control (auth is the
 // real gate). Paired with app/robots.ts.
 export const metadata: Metadata = {
-  title: "golden-book-rag",
+  title: "Ask your book",
   robots: { index: false, follow: false },
 };
 
