@@ -41,9 +41,36 @@ seams for later.
 | HTTP | typed `fetch` wrapper | small surface, no axios needed |
 | Validation | zod (mirror backend pydantic schemas) | runtime safety at the API boundary |
 
-> Decision to confirm during shaping: Next.js vs. a plain Vite SPA. Next.js is the
-> default per the architecture doc, but the MVP has no SSR/SEO needs, so Vite is a
-> legitimate lighter option.
+> Decided (Step 8 shaping): **Next.js (App Router)**. The MVP itself has no
+> SSR/SEO need — in fact the app is **deliberately non-indexed** (no crawlers; root
+> `metadata.robots` noindex + `robots.ts` `Disallow: /`, Step 8 D10) — but **auth is
+> almost certainly coming** — App Router gives the
+> httpOnly-cookie session, `middleware.ts` route protection, and server-component
+> session-read seams a static Vite SPA lacks, so we take it now to avoid retrofitting
+> the data-fetch + routing layer later. See `docs/v1/step8/shaping.md` D1/D9.
+
+> ⚠️ **Security cost of running a framework server — treat as a standing concern.**
+> Choosing Next.js re-opens the entire class of server-side framework CVEs that a
+> static SPA does *not* have (Step 8 D9 listed this as the explicit tradeoff). These
+> bugs land precisely on the **SSR / middleware / RSC / cache** layers — i.e. exactly
+> where our auth boundary will live, so a framework CVE there is an auth-bypass, not a
+> cosmetic bug. Known precedent: **`middleware.ts` authorization bypass**
+> (CVE-2025-29927, spoofable `x-middleware-subrequest` header → middleware skipped),
+> **SSR cache poisoning**, **image-optimizer / rewrite SSRF**, and **RSC / Server
+> Actions** deserialization issues. Discipline:
+>
+> - **Pin + patch fast.** Track Next.js security advisories; treat a Next CVE as a
+>   priority bump, not a routine dep update. Keep the runtime version pinned and
+>   updated deliberately.
+> - **Never make `middleware.ts` the *only* authorization gate.** Re-check auth at
+>   the data boundary too (route handler / server component / the backend's
+>   owner-scoping) so a middleware bypass doesn't equal a full bypass — defense in
+>   depth, not a single edge check.
+> - **Treat all request-derived input as untrusted in server code** (headers,
+>   cookies, params, rewrite targets) — these CVEs are usually header/path spoofing.
+> - **Lock down the rewrite/proxy + image config** — the `/api` rewrite target and
+>   any `next/image` remote patterns are SSRF surface; keep them allow-listed, not
+>   open.
 
 ---
 

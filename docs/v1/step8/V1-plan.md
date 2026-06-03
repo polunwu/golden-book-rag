@@ -5,40 +5,45 @@ shaping: true
 # Step 8: V1 Implementation Plan — Frontend Foundation
 
 Implements **V1** from [slices.md](./slices.md) — all of Shape A: the `frontend/`
-Vite scaffold + shell (A1), env + Vite dev proxy (A2), OpenAPI→zod codegen (A3),
-the hand-written typed client + `ApiError` (A4), `listBooks` (A5), TanStack Query
-(A6), the connectivity-smoke route (A7), shared primitives (A8), and repo wiring
-(A9).
+Next.js (App Router) scaffold + shell (A1), env + Next dev rewrites (A2),
+OpenAPI→zod codegen (A3), the hand-written typed client + `ApiError` (A4),
+`listBooks` (A5), TanStack Query (A6), the connectivity-smoke route (A7), shared
+primitives (A8), and repo wiring (A9).
 
 Demo: `make api` + `cd frontend && yarn dev` → `/` shows **"Connected · N books"**
 from `GET /books` through the typed client + generated zod; backend down → error
-state; `/books/:id` → placeholder in the shell.
+state; `/books/[id]` → placeholder in the shell.
 
-**No backend changes** (D2/D8 — origin via the Vite dev proxy). New top-level
-`frontend/` only, plus two root files (`Makefile`, `.gitignore`).
+**No backend changes** (D2/D8 — origin via the Next.js dev rewrite). New
+top-level `frontend/` only, plus two root files (`Makefile`, `.gitignore`).
+
+**Framework note (D1):** Next.js App Router is chosen because **auth is almost
+certainly coming** — App Router gives the httpOnly-cookie session, `middleware.ts`
+route protection, and server-component session-read seams a static SPA lacks
+(see shaping D1/D9, C0.6). Step 8 builds **none** of that; the MVP screens are
+client components using TanStack Query. The seam is reserved, not exercised.
 
 ## Files
 
 | File                                          | Action |
 |-----------------------------------------------|--------|
-| `frontend/` (scaffold)                        | Create — Vite `react-ts` + Tailwind + react-router + TanStack Query + zod + openapi-zod-client (A1) |
-| `frontend/vite.config.ts`                     | React plugin + `server.proxy` `/api` → `:8000` (A2/N4) |
-| `frontend/src/vite-env.d.ts`                  | Type `import.meta.env.VITE_API_BASE_URL` |
-| `frontend/.env.example`                       | `VITE_API_BASE_URL=/api` (A2/S2) |
-| `frontend/src/config.ts`                      | `API_BASE_URL` reader (A2/N3) |
+| `frontend/` (scaffold)                        | Create — `create-next-app` (App Router, TS, Tailwind, `src/`) + TanStack Query + zod + openapi-zod-client (A1) |
+| `frontend/next.config.ts`                     | `async rewrites()` `/api/:path*` → `:8000/:path*` (A2/N4) |
+| `frontend/.env.example`                       | `NEXT_PUBLIC_API_BASE_URL=/api` (A2/S2) |
+| `frontend/src/lib/config.ts`                  | `API_BASE_URL` reader (A2/N3) |
 | `frontend/src/api/client.ts`                  | `request<T>` + `ApiError` (A4/N5, N6) |
 | `frontend/src/api/books.ts`                   | `listBooks()` (A5/N7) |
 | `frontend/src/api/generated/schemas.ts`       | Generated, committed (A3/S1) |
 | `frontend/schemas-only.hbs`                   | openapi-zod-client template — schemas only, no Zodios (A3) |
-| `frontend/src/main.tsx`                        | Bootstrap providers (A6/N1) |
-| `frontend/src/router.tsx`                      | Routes (A1/N2) |
-| `frontend/src/components/Layout.tsx`          | Shell + nav + `<Outlet/>` (A1/U4, U5) |
+| `frontend/src/app/layout.tsx`                 | Root shell + nav + `{children}` + `<Providers>` (A1/U4, U5, N1) |
+| `frontend/src/app/providers.tsx`              | `"use client"` `QueryClientProvider` boundary (A6/N2) |
 | `frontend/src/components/Loading.tsx`         | Shared primitive (A8/U2) |
 | `frontend/src/components/ErrorState.tsx`      | Shared primitive (A8/U3) |
 | `frontend/src/components/Empty.tsx`           | Shared primitive (A8/U7) |
-| `frontend/src/routes/Home.tsx`                | Smoke (A7/U1, N8) |
-| `frontend/src/routes/BookDetail.tsx`          | Placeholder (A1/U6) |
-| `frontend/src/index.css`                      | `@import "tailwindcss";` (v4) |
+| `frontend/src/app/page.tsx`                   | Smoke (A7/U1, N8) — `"use client"` |
+| `frontend/src/app/books/[id]/page.tsx`        | Placeholder (A1/U6) |
+| `frontend/src/app/robots.ts`                  | `Disallow: /` — non-indexed app (A1/D10) |
+| `frontend/src/app/globals.css`                | `@import "tailwindcss";` (v4) |
 | `Makefile`                                    | `openapi`, `web` targets (A9/N10) |
 | `.gitignore`                                  | frontend ignores + `.env.example` un-ignore (A9) |
 
@@ -49,85 +54,64 @@ state; `/books/:id` → placeholder in the shell.
 From the repo root:
 
 ```bash
-mkdir frontend && cd frontend
-yarn create vite . --template react-ts
-yarn add react-router-dom @tanstack/react-query zod
-yarn add -D tailwindcss @tailwindcss/vite openapi-zod-client
+yarn create next-app frontend --ts --app --tailwind --src-dir --eslint --import-alias "@/*" --use-yarn
+cd frontend
+yarn add @tanstack/react-query zod
+yarn add -D openapi-zod-client
 ```
 
-Tailwind v4 (current — `4.3`) ships a first-party Vite plugin: no `init -p`, no
-`postcss`/`autoprefixer`, no `tailwind.config.js`. Wire the plugin in
-`vite.config.ts` (§1 below already includes it) and import Tailwind from CSS.
-Content sources are auto-detected; theme customization lives in CSS via
-`@theme`, not a JS config.
+`create-next-app --tailwind` wires Tailwind v4 (current) via `@tailwindcss/postcss`
+and a `globals.css` that already starts with `@import "tailwindcss";` — no
+`tailwind.config.js`, no manual PostCSS. `--src-dir` puts the app under `src/`
+(`src/app/…`), keeping paths close to the rest of the plan; create-next-app also
+configures the `@/*` import alias (→ `./src/*`). **This plan uses plain relative
+imports** (`../lib/config`) so every path below is literal and copy-pasteable; the
+`@/*` alias works too if you prefer it. (Accept defaults for any remaining
+interactive prompts, e.g. Turbopack — they don't affect this plan.)
 
-Replace `src/index.css` with the single Tailwind import, delete the Vite demo
-boilerplate (`App.tsx`, `App.css`, assets) — `main.tsx` / `router.tsx` below
-replace it.
-
-```css
-/* src/index.css */
-@import "tailwindcss";
-```
-
-`index.html` keeps the Vite default (`<div id="root">` + `<script
-type="module" src="/src/main.tsx">`), title `golden-book-rag`.
+Delete the create-next-app demo boilerplate inside `src/app/page.tsx` (replaced
+in §6) and any starter assets; keep `globals.css` (Tailwind import) and the
+generated `layout.tsx` (replaced in §5).
 
 ---
 
-## 1. Env + Vite proxy (A2 — N3, N4, S2)
+## 1. Env + Next rewrites (A2 — N3, N4, S2)
 
-`frontend/src/config.ts`:
+`frontend/src/lib/config.ts`:
 
 ```ts
-// Single source of the API base. Relative `/api` works in both dev (Vite proxy,
-// vite.config.ts) and prod (reverse proxy, same origin) — no absolute URL is
-// ever baked into the bundle. (Shaping D8/F1.)
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+// Single source of the API base. Relative `/api` works in both dev (Next
+// rewrites, next.config.ts) and prod (the Next server applies the same rewrite,
+// same origin) — no absolute URL is ever baked into the client bundle.
+// (Shaping D8/F1.) NEXT_PUBLIC_ exposes it to client components.
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api";
 ```
 
-`frontend/src/vite-env.d.ts` (Vite scaffolds the reference line; add the typing):
+`frontend/next.config.ts`:
 
 ```ts
-/// <reference types="vite/client" />
+import type { NextConfig } from "next";
 
-interface ImportMetaEnv {
-  readonly VITE_API_BASE_URL?: string;
-}
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
-```
+// Dev origin (D8/G1-A): the browser only ever talks to the Next origin; Next
+// rewrites /api/* to the backend, stripping the /api prefix (backend routes are
+// /books, not /api/books). No CORS, backend untouched. The same rewrite runs on
+// the Next server in prod (single origin). The backend target is env-overridable
+// for non-local deploys; defaults to the dev backend.
+const BACKEND = process.env.BACKEND_ORIGIN ?? "http://localhost:8000";
 
-`frontend/vite.config.ts`:
-
-```ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-
-// Dev origin (D8/G1-A): the browser only ever talks to the Vite origin; Vite
-// proxies /api/* to the backend, stripping the /api prefix (backend routes are
-// /books, not /api/books). No CORS, backend untouched. Prod uses a reverse proxy
-// for the same /api path (out of scope).
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  server: {
-    proxy: {
-      "/api": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api/, ""),
-      },
-    },
+const nextConfig: NextConfig = {
+  async rewrites() {
+    return [{ source: "/api/:path*", destination: `${BACKEND}/:path*` }];
   },
-});
+};
+
+export default nextConfig;
 ```
 
 `frontend/.env.example`:
 
 ```
-VITE_API_BASE_URL=/api
+NEXT_PUBLIC_API_BASE_URL=/api
 ```
 
 ---
@@ -149,14 +133,16 @@ export type {{@key}} = z.infer<typeof {{@key}}>;
 {{/each}}
 ```
 
-`frontend/package.json` script:
+`frontend/package.json` — add the `gen:api` script (create-next-app already
+provides `dev`/`build`/`start`/`lint`):
 
 ```json
 {
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
     "gen:api": "openapi-zod-client openapi.json -o src/api/generated/schemas.ts -t schemas-only.hbs --export-schemas"
   }
 }
@@ -182,7 +168,7 @@ schemas: `BookOut`, `ChunkBase`, `Citation`, `SearchHit`, `AskResponse`, and the
 
 ```ts
 import type { z } from "zod";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL } from "../lib/config";
 
 // N6 — typed error: backend returns { detail: string }; map status + detail to a
 // friendly message (shaping R2.2). `message` (Error.message) is what TanStack
@@ -213,7 +199,9 @@ export class ApiError extends Error {
 }
 
 // N5 — the one fetch wrapper. Base URL from config, JSON in/out, zod-parse on
-// success, throw ApiError on non-2xx or shape mismatch. No axios (D6).
+// success, throw ApiError on non-2xx or shape mismatch. No axios (D6). Works
+// from client components today; the same wrapper is where a session header /
+// cookie pass-through lands when auth arrives (D1/D9).
 export async function request<T>(
   path: string,
   schema: z.ZodType<T>,
@@ -266,80 +254,89 @@ export type { BookOut };
 
 ---
 
-## 5. App shell + routes (A1 — N1, N2, U4–U6)
+## 5. App shell + providers + routes (A1, A6 — N1, N2, U4–U6)
 
-`frontend/src/main.tsx`:
+`frontend/src/app/providers.tsx` (the `"use client"` boundary that lets the
+server-rendered layout mount TanStack Query):
 
 ```tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
+"use client";
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RouterProvider } from "react-router-dom";
-import { router } from "./router";
-import "./index.css";
+import { useState } from "react";
 
-const queryClient = new QueryClient();
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  </React.StrictMode>,
-);
+// N2 — one QueryClient per browser session. useState (not a module singleton) so
+// each client gets its own instance and it survives re-renders. Mounted in the
+// root layout (§ below).
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
 ```
 
-`frontend/src/router.tsx`:
+`frontend/src/app/layout.tsx`:
 
 ```tsx
-import { createBrowserRouter } from "react-router-dom";
-import { Layout } from "./components/Layout";
-import { Home } from "./routes/Home";
-import { BookDetail } from "./routes/BookDetail";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Providers } from "./providers";
+import "./globals.css";
 
-export const router = createBrowserRouter([
-  {
-    element: <Layout />,
-    children: [
-      { path: "/", element: <Home /> },
-      { path: "/books/:id", element: <BookDetail /> },
-    ],
-  },
-]);
-```
+// D10 — non-indexed app-wide: robots noindex/nofollow propagates to every route
+// from the root layout. Cheap crawler deterrent, NOT access control (auth is the
+// real gate). Paired with app/robots.ts (§ below).
+export const metadata: Metadata = {
+  title: "golden-book-rag",
+  robots: { index: false, follow: false },
+};
 
-`frontend/src/components/Layout.tsx`:
-
-```tsx
-import { Link, Outlet } from "react-router-dom";
-
-export function Layout() {
+// N1 — root layout: chrome (header/nav) + the App Router <Outlet> equivalent
+// ({children}), wrapped in the client Providers boundary. Every route nests here.
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-900">
-      <header className="border-b bg-white">
-        <nav className="mx-auto flex max-w-3xl items-center px-4 py-3">
-          <Link to="/" className="font-semibold">
-            golden-book-rag
-          </Link>
-        </nav>
-      </header>
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <Outlet />
-      </main>
-    </div>
+    <html lang="en">
+      <body className="min-h-screen bg-zinc-50 text-zinc-900">
+        <Providers>
+          <header className="border-b bg-white">
+            <nav className="mx-auto flex max-w-3xl items-center px-4 py-3">
+              <Link href="/" className="font-semibold">
+                golden-book-rag
+              </Link>
+            </nav>
+          </header>
+          <main className="mx-auto max-w-3xl px-4 py-8">{children}</main>
+        </Providers>
+      </body>
+    </html>
   );
 }
 ```
 
-`frontend/src/routes/BookDetail.tsx`:
+`frontend/src/app/books/[id]/page.tsx`:
 
 ```tsx
-import { useParams } from "react-router-dom";
-
 // Placeholder route (Step 10+). Registered now so the shell + routing are real.
-export function BookDetail() {
-  const { id } = useParams();
+// Server component; params is a Promise in the App Router.
+export default async function BookDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   return <p className="text-sm text-zinc-500">Book {id} — coming soon.</p>;
+}
+```
+
+`frontend/src/app/robots.ts` (D10 — `Disallow: /` for all crawlers; Next serves
+this as `/robots.txt`):
+
+```ts
+import type { MetadataRoute } from "next";
+
+// D10 — keep the app out of search indexes. Polite-crawler deterrent only; the
+// real privacy gate is auth (D1). Pairs with the root metadata.robots noindex.
+export default function robots(): MetadataRoute.Robots {
+  return { rules: { userAgent: "*", disallow: "/" } };
 }
 ```
 
@@ -376,9 +373,12 @@ export function Empty({ label = "Nothing here yet." }: { label?: string }) {
 }
 ```
 
-`frontend/src/routes/Home.tsx` (N8 + U1):
+`frontend/src/app/page.tsx` (N8 + U1) — a client component because it uses
+`useQuery`:
 
 ```tsx
+"use client";
+
 import { useQuery } from "@tanstack/react-query";
 import { listBooks } from "../api/books";
 import { Loading } from "../components/Loading";
@@ -386,7 +386,7 @@ import { ErrorState } from "../components/ErrorState";
 
 // A7 — the connectivity smoke. Proves env → client → generated-zod → render
 // end-to-end against the live backend. (No Library grid — that's Step 9.)
-export function Home() {
+export default function Home() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["books"],
     queryFn: listBooks,
@@ -421,7 +421,7 @@ openapi:
 	uv run python -c "import json, api.main; print(json.dumps(api.main.app.openapi()))" > frontend/openapi.json
 	cd frontend && yarn gen:api
 
-# Frontend dev server (Vite). Run alongside `make api` (uvicorn) in another shell.
+# Frontend dev server (Next.js). Run alongside `make api` (uvicorn) in another shell.
 web:
 	cd frontend && yarn dev
 ```
@@ -433,38 +433,39 @@ web:
 ```
 # frontend
 frontend/node_modules/
-frontend/dist/
+frontend/.next/
 frontend/openapi.json
 !frontend/.env.example
 ```
 
 (`frontend/openapi.json` is the throwaway codegen input — only the generated
-`schemas.ts` is committed. The `!frontend/.env.example` negates the existing
-`.env.*` rule so the example is tracked.)
+`schemas.ts` is committed. `frontend/.next/` is the Next build cache. The
+`!frontend/.env.example` negates the existing `.env.*` rule so the example is
+tracked.)
 
 ---
 
 ## Implementation Order
 
-1. **Scaffold** (§0) — `yarn create vite`, add deps, wire the `@tailwindcss/vite`
-   plugin + `@import "tailwindcss";`, drop demo boilerplate. `yarn dev` shows the
-   blank Vite page.
-2. **Env + proxy** (§1) — `config.ts`, `vite-env.d.ts`, `vite.config.ts`,
-   `.env.example`.
+1. **Scaffold** (§0) — `yarn create next-app … --src-dir`, add deps, confirm the
+   Tailwind `@import` is in `globals.css`, drop demo boilerplate. `yarn dev` shows
+   the default Next page.
+2. **Env + rewrites** (§1) — `lib/config.ts`, `next.config.ts`, `.env.example`.
 3. **Codegen** (§2 + §7 `make openapi`) — boot nothing; run `make openapi` to
    produce `src/api/generated/schemas.ts`. Verify `BookList`/`BookOut` exports
    exist; fix the §4 import name if the generator sanitized it.
 4. **Client** (§3) — `client.ts` (`request` + `ApiError`).
 5. **Endpoint** (§4) — `books.ts` `listBooks`.
-6. **Shell + routes** (§5) — `main.tsx`, `router.tsx`, `Layout`, `BookDetail`.
-7. **Primitives + smoke** (§6) — `Loading`/`ErrorState`/`Empty`, `Home`.
+6. **Shell + providers + routes** (§5) — `providers.tsx`, `layout.tsx` (incl.
+   `metadata.robots` noindex), `books/[id]/page.tsx`, `robots.ts`.
+7. **Primitives + smoke** (§6) — `Loading`/`ErrorState`/`Empty`, `page.tsx`.
 8. **Repo wiring** (§7) — `Makefile`, `.gitignore`.
 9. **Smoke run** — `make db-up` (if needed) → `make api` in one shell, `make web`
    in another → open `/`:
    - backend up with ≥0 books → "Connected · N books"
    - stop `uvicorn`, reload → friendly error state
    - visit `/books/abc` → placeholder in the shell
-10. **Build gate** — `cd frontend && yarn build` green (`tsc -b && vite build`);
+10. **Build gate** — `cd frontend && yarn build` green (`next build`);
     `grep -ri "axios\|zodios" frontend/src` returns nothing (D6).
 
 ---
@@ -472,23 +473,30 @@ frontend/openapi.json
 ## Done When
 
 - `/` renders **"Connected · N books"** with the live `GET /books` count, via
-  `request` → Vite proxy → generated-zod parse → TanStack Query
+  `request` → Next rewrite → generated-zod parse → TanStack Query
 - Backend down / non-2xx → `<ErrorState>` shows `ApiError.message` (friendly), no
   white screen or unhandled rejection
 - A zod parse mismatch surfaces as the same error state, not a silent `any`
-- The Vite proxy is the only path to the backend — no CORS added; the backend is
+- The Next rewrite is the only path to the backend — no CORS added; the backend is
   untouched (`git status` shows only `frontend/`, `Makefile`, `.gitignore`)
-- `/books/:id` renders the placeholder inside the shared shell; nav renders
+- `/books/[id]` renders the placeholder inside the shared shell; nav renders
 - `make openapi` regenerates `src/api/generated/schemas.ts` offline
   (`app.openapi()`), and the file is committed
 - `yarn build` is green; no axios/Zodios dependency is pulled in
-- No feature screens, no per-endpoint fns beyond `listBooks`, no `impeccable`
-  pass (Step 9+ scope)
+- App is non-indexed (D10): `curl localhost:3000/robots.txt` → `Disallow: /`, and
+  page HTML carries `<meta name="robots" content="noindex, nofollow">`
+- No auth/middleware, no feature screens, no per-endpoint fns beyond `listBooks`,
+  no `impeccable` pass (Step 9+ / auth-step scope)
 
 ## Step 9 Hand-off
 
 Carried forward (see [shaping.md](./shaping.md) "Out of Scope"):
 
+- **Auth (post-MVP)** is the reason for the App Router (D1/D9). When it lands it
+  uses seams built here: a `middleware.ts` for edge route protection, a
+  server-component session read, and the `request` wrapper (N5) as the single
+  place to attach the session credential. It also needs the backend owner-scoping
+  change (C0.6). None of this is built in Step 8.
 - **Library grid** (Step 9) is the first feature screen — it reuses `listBooks`
   (N7), the shared `<Loading>`/`<ErrorState>`/`<Empty>` primitives, and the
   TanStack Query pattern this step established. It adds status badges + cards.
@@ -498,6 +506,6 @@ Carried forward (see [shaping.md](./shaping.md) "Out of Scope"):
 - **Codegen on backend change** — re-run `make openapi` whenever a backend schema
   changes; the committed `schemas.ts` diff is the contract-drift signal.
 - **`impeccable` polish** rides each feature screen, not this structural step.
-- **Prod origin** is decided (D8: static build + reverse proxy, single `/api`
-  origin, SPA fallback) but built at the deploy step; backend CORS only if FE/BE
-  ever split origins.
+- **Prod origin** is decided (D8: the Next server applies the same `/api` rewrite,
+  single origin, optionally behind a deploy proxy) but built at the deploy step;
+  backend CORS only if FE/BE ever split origins.
