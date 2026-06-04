@@ -23,7 +23,7 @@ export function BookCard({ book }: { book: BookOut }) {
         </div>
         <div className="mt-1.5 flex items-center gap-2">
           <StatusBadge status={book.status} />
-          <span aria-hidden className="text-xs text-rule">
+          <span aria-hidden className="text-xs text-ink-muted/40">
             &middot;
           </span>
           <time dateTime={book.created_at} className="font-sans text-xs text-ink-muted">
