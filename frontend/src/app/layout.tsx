@@ -14,16 +14,22 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-zinc-50 text-zinc-900">
+      <body className="min-h-screen">
         <Providers>
-          <header className="border-b border-zinc-200 bg-white">
-            <nav className="mx-auto flex max-w-3xl items-center px-4 py-3">
-              <Link href="/" className="font-semibold">
+          <header className="border-b border-rule">
+            <nav className="mx-auto flex max-w-3xl flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-5">
+              <Link
+                href="/"
+                className="rounded-sm text-lg tracking-tight text-ink transition-colors hover:text-ink-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-status-processing focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+              >
                 Ask your book
               </Link>
+              <span className="font-sans text-xs text-ink-muted">
+                grounded answers from your own books
+              </span>
             </nav>
           </header>
-          <main className="mx-auto max-w-3xl px-4 py-8">{children}</main>
+          <main className="mx-auto max-w-3xl px-5 py-12">{children}</main>
         </Providers>
       </body>
     </html>

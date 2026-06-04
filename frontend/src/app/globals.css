@@ -1,5 +1,45 @@
 @import "tailwindcss";
 
+@theme {
+  --font-serif: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+
+  --color-paper: oklch(0.985 0.003 250);
+  --color-paper-raised: oklch(0.965 0.005 250);
+  --color-ink: oklch(0.28 0.014 65);
+  --color-ink-muted: oklch(0.46 0.013 68);
+  --color-rule: oklch(0.905 0.008 80);
+
+  --color-status-ready: oklch(0.58 0.13 155);
+  --color-status-processing: oklch(0.7 0.15 75);
+  --color-status-failed: oklch(0.57 0.18 25);
+  --color-status-pending: oklch(0.62 0.01 70);
+}
+
+html {
+  color-scheme: light;
+}
+
 body {
-  font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background-color: oklch(0.7 0.15 75 / 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
