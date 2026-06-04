@@ -17,7 +17,7 @@ EVAL_CASES_PATH = "eval/cases.json"
 BOOK_TITLE = "AI Engineering: Building Applications with Foundation Models"
 BOOK_FILE = "temp/books/AI_ENGINEERING_BUILDING.pdf"
 # Fixed UUID → re-running this script re-ingests the same book row.
-BOOK_ID = uuid.UUID("00000000-0000-0000-0000-00000000a1e0")
+BOOK_ID = uuid.UUID("652cca68-b7ca-4f41-99f8-c3045dcf20df")
 
 
 def main() -> None:
