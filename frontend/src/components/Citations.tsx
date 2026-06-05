@@ -16,7 +16,7 @@ export function Citations({
 
   return (
     <section className="mt-8">
-      <h2 className="font-sans text-xs font-medium uppercase tracking-wide text-ink-muted">
+      <h2 className="font-sans text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted">
         Sources
       </h2>
       <ol className="mt-3 space-y-3">
@@ -29,25 +29,28 @@ export function Citations({
               key={c.marker}
               id={`cite-${c.marker}`}
               ref={(el) => registerRef(c.marker, el)}
-              className={`scroll-mt-4 rounded-lg border px-4 py-3 transition-colors duration-300 ${
+              className={`scroll-mt-6 rounded-lg border px-4 py-3.5 transition-colors duration-300 ${
                 isHot
                   ? "border-status-processing bg-status-processing/10"
-                  : "border-rule bg-paper-raised"
+                  : "border-rule bg-paper-raised hover:border-ink-muted/30"
               }`}
             >
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 font-sans text-xs text-ink-muted">
-                <span className="font-medium text-ink">[{c.marker}]</span>
-                {crumb && <span>{crumb}</span>}
-                {pages && (
-                  <>
-                    {crumb && <span aria-hidden>&middot;</span>}
-                    <span>{pages}</span>
-                  </>
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-status-processing/15 px-1 font-sans text-xs font-semibold text-status-processing">
+                  {c.marker}
+                </span>
+                {crumb && (
+                  <span className="font-sans text-xs font-medium text-ink">
+                    {crumb}
+                  </span>
                 )}
-                <span aria-hidden>&middot;</span>
-                <span>score {c.score.toFixed(2)}</span>
+                <span className="font-sans text-xs text-ink-muted">
+                  {pages && <span>{pages}</span>}
+                  {pages && <span aria-hidden className="mx-1.5">&middot;</span>}
+                  <span>score {c.score.toFixed(2)}</span>
+                </span>
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+              <p className="mt-2.5 whitespace-pre-wrap text-sm leading-relaxed text-ink">
                 {c.text}
               </p>
             </li>

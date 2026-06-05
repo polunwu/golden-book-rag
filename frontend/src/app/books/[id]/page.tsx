@@ -13,9 +13,10 @@ import { bookTitle } from "@/lib/format";
 function BookSkeleton() {
   return (
     <div aria-hidden>
-      <Skeleton className="h-7 w-2/3 rounded" />
+      <Skeleton className="h-8 w-2/3 rounded" />
       <Skeleton className="mt-3 h-3 w-24 rounded" />
       <Skeleton className="mt-8 h-11 w-full rounded-lg" />
+      <Skeleton className="mt-4 h-5 w-56 rounded-full" />
     </div>
   );
 }
@@ -50,8 +51,8 @@ export default function BookDetail({
           <ErrorState detail={(error as Error).message} />
         ) : (
           <>
-            <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="text-balance text-2xl tracking-tight text-ink">
+            <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+              <h1 className="text-balance text-3xl leading-tight tracking-tight text-ink">
                 {bookTitle(book!)}
               </h1>
               <StatusBadge status={book!.status} />

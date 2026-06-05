@@ -3,16 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Citation } from "@/api/books";
 import { Citations } from "@/components/Citations";
-import { Notice } from "@/components/ui";
 
-// Split on `[n]`; the capturing group puts text at even indices, marker
-// numbers at odd indices.
-function parseMarkers(answer: string): Array<{ text: string } | { marker: number }> {
-  const parts = answer.split(/\[(\d+)\]/g);
-  const out: Array<{ text: string } | { marker: number }> = [];
+// Split on a citation token, which may group several sources — the model emits
+// `[1]` but also `[1, 2]`. The capturing group puts text at even indices and the
+// bracket's inner (`"1, 2"`) at odd indices; each group expands to one chip per
+// number.
+type Segment = { text: string } | { markers: number[] };
+
+function parseMarkers(answer: string): Segment[] {
+  const parts = answer.split(/\[([\d\s,]+)\]/g);
+  const out: Segment[] = [];
   parts.forEach((part, i) => {
-    if (i % 2 === 1) out.push({ marker: Number(part) });
-    else if (part) out.push({ text: part });
+    if (i % 2 === 1) {
+      const markers = part.match(/\d+/g)?.map(Number) ?? [];
+      if (markers.length) out.push({ markers });
+      else out.push({ text: `[${part}]` });
+    } else if (part) {
+      out.push({ text: part });
+    }
   });
   return out;
 }
@@ -58,30 +66,47 @@ export function AnswerView({
 
   const segments = parseMarkers(answer);
 
+  // Owns no outer margin — each caller (single column / a compare column under
+  // its own heading) controls the gap above this block.
   return (
-    <div className="mt-6">
+    <div>
       {refused && (
-        <Notice className="mb-4">
-          Not enough in this book to answer confidently.
-        </Notice>
+        <div
+          role="status"
+          className="mb-5 flex items-start gap-2.5 rounded-lg border border-rule bg-paper-raised px-4 py-3"
+        >
+          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-status-pending" />
+          <div className="font-sans text-sm">
+            <p className="font-medium text-ink">Not grounded in this book</p>
+            <p className="mt-0.5 text-ink-muted">
+              There wasn&rsquo;t enough in this book to answer confidently.
+            </p>
+          </div>
+        </div>
       )}
 
-      <div className="whitespace-pre-wrap text-base leading-relaxed text-ink">
+      <div className="whitespace-pre-wrap text-[1.0625rem] leading-[1.75] text-ink">
         {segments.map((seg, i) =>
           "text" in seg ? (
             <span key={i}>{seg.text}</span>
-          ) : hasCitation(seg.marker) ? (
-            <button
-              key={i}
-              type="button"
-              onClick={() => goToCitation(seg.marker)}
-              className="mx-0.5 inline-flex items-baseline rounded font-sans text-xs font-medium text-status-processing align-super hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-status-processing focus-visible:ring-offset-1 focus-visible:ring-offset-paper"
-              aria-label={`Jump to source ${seg.marker}`}
-            >
-              [{seg.marker}]
-            </button>
           ) : (
-            <span key={i}>[{seg.marker}]</span>
+            <span key={i} className="whitespace-nowrap">
+              {seg.markers.map((m, j) =>
+                hasCitation(m) ? (
+                  <button
+                    key={j}
+                    type="button"
+                    onClick={() => goToCitation(m)}
+                    className="mx-0.5 inline-flex h-[1.15em] min-w-[1.15em] items-center justify-center rounded px-1 align-text-top font-sans text-[0.7rem] font-semibold leading-none text-status-processing bg-status-processing/15 transition-colors hover:bg-status-processing/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-status-processing focus-visible:ring-offset-1 focus-visible:ring-offset-paper"
+                    aria-label={`Jump to source ${m}`}
+                  >
+                    {m}
+                  </button>
+                ) : (
+                  <span key={j}>[{m}]</span>
+                ),
+              )}
+            </span>
           ),
         )}
       </div>
