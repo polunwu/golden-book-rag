@@ -16,10 +16,18 @@ export function AskPanel({
   status: BookStatus;
 }) {
   const [query, setQuery] = useState("");
+  const [compare, setCompare] = useState(false);
   const ready = status === "ready";
 
   const mutation = useMutation({
-    mutationFn: (q: string) => ask(bookId, { query: q, k: 5 }, true),
+    mutationFn: async (q: string) => {
+      const body = { query: q, k: 5 };
+      const [rag, plain] = await Promise.all([
+        ask(bookId, body, true),
+        compare ? ask(bookId, body, false) : Promise.resolve(null),
+      ]);
+      return { rag, plain };
+    },
   });
 
   const canSubmit = ready && query.trim().length > 0 && !mutation.isPending;
@@ -53,19 +61,54 @@ export function AskPanel({
         </Button>
       </form>
 
+      <label className="mt-3 inline-flex items-center gap-2 font-sans text-sm text-ink-muted">
+        <input
+          type="checkbox"
+          checked={compare}
+          onChange={(e) => setCompare(e.target.checked)}
+          disabled={!ready || mutation.isPending}
+          className="disabled:cursor-not-allowed disabled:opacity-60"
+        />
+        Compare with plain LLM (no retrieval)
+      </label>
+
       {mutation.error && (
         <div className="mt-4">
           <ErrorState detail={(mutation.error as Error).message} />
         </div>
       )}
 
-      {mutation.data && (
-        <AnswerView
-          answer={mutation.data.answer}
-          refused={mutation.data.refused}
-          citations={mutation.data.citations}
-        />
-      )}
+      {mutation.data &&
+        (mutation.data.plain ? (
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <section>
+              <h2 className="mb-2 font-sans text-sm font-medium text-ink-muted">
+                With retrieval
+              </h2>
+              <AnswerView
+                answer={mutation.data.rag.answer}
+                refused={mutation.data.rag.refused}
+                citations={mutation.data.rag.citations}
+              />
+            </section>
+            <section>
+              <h2 className="mb-2 font-sans text-sm font-medium text-ink-muted">
+                Without retrieval
+              </h2>
+              <AnswerView
+                answer={mutation.data.plain.answer}
+                refused={mutation.data.plain.refused}
+                citations={mutation.data.plain.citations}
+              />
+            </section>
+          </div>
+        ) : (
+          <AnswerView
+            answer={mutation.data.rag.answer}
+            refused={mutation.data.rag.refused}
+            citations={mutation.data.rag.citations}
+          />
+        ))}
     </div>
   );
 }
