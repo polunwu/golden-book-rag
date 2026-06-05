@@ -20,10 +20,14 @@ SYSTEM_INSTRUCTION = (
     "not contain enough information to answer the question, and leave answer empty\n"
     "— do NOT write a 'not enough information' sentence yourself. Otherwise set\n"
     "can_answer=true and put the grounded answer in answer.\n"
+    "\n"
+    "ALWAYS write `answer` in the SAME LANGUAGE AS THE QUESTION, even when the\n"
+    "excerpts are in a different language. The excerpts are source material only —\n"
+    "they do NOT decide the answer's language; the question does.\n"
+    "\n"
     "Rules for answer when can_answer=true:\n"
     "- Use ONLY the information in the numbered excerpts. Do not use outside knowledge.\n"
     "- Support each claim with inline citation markers like [1], [2] referring to the excerpt numbers.\n"
-    "- Answer in the same language as the question.\n"
     "- Be concise and direct."
 )
 
@@ -83,6 +87,16 @@ def refusal_text(query: str) -> str:
     return "I couldn't find relevant content in this book to answer that question."
 
 
+def _language_directive(query: str) -> str:
+    """Explicit language instruction appended to the user turn. A directive at the
+    end of the prompt holds against the pull of (often English) excerpts better
+    than a system-instruction line. CJK query → Chinese directive (mirrors
+    refusal_text's convention); otherwise English."""
+    if any(_is_cjk(c) for c in query):
+        return "請務必使用與問題完全相同的語言作答。"
+    return "Write your answer in the same language as the question."
+
+
 def _cite_label(h: ChunkHit) -> str:
     parts: list[str] = []
     if h.page_start is not None:
@@ -113,7 +127,7 @@ def generate_answer(query: str, hits: list[ChunkHit]) -> GroundedAnswer:
     `hits` is non-empty and above the refusal floor. Returns a structured verdict:
     `can_answer=False` is the model-side soft refusal."""
     client = make_client()
-    contents = f"{_format_context(hits)}\n\nQuestion: {query}"
+    contents = f"{_format_context(hits)}\n\nQuestion: {query}\n\n{_language_directive(query)}"
     resp = client.models.generate_content(
         model=_gen_model(),
         contents=contents,
