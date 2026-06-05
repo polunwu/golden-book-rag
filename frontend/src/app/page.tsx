@@ -5,14 +5,15 @@ import { listBooks } from "../api/books";
 import { BookCard } from "../components/BookCard";
 import { Empty } from "../components/Empty";
 import { ErrorState } from "../components/ErrorState";
+import { Skeleton } from "../components/ui";
 
 function LibrarySkeleton() {
   return (
     <ul className="divide-y divide-rule" aria-hidden>
       {[0, 1, 2].map((i) => (
         <li key={i} className="px-3 py-4">
-          <div className="h-5 w-2/3 animate-pulse rounded bg-rule" />
-          <div className="mt-2.5 h-3 w-32 animate-pulse rounded bg-rule" />
+          <Skeleton className="h-5 w-2/3 rounded" />
+          <Skeleton className="mt-2.5 h-3 w-32 rounded" />
         </li>
       ))}
     </ul>

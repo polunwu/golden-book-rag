@@ -48,6 +48,7 @@ offloads the **sync** `ingest_pdf` to a thread (`anyio.to_thread`), which runs:
 - `services/retrieval.py:search_chunks` — top-k by pgvector cosine distance (`<=>`, HNSW index). Query vec must be L2-normalized and passed as `np.ndarray` (a plain `list[float]` silently dumps as `float8[]` and breaks `<=>`).
 - `services/generate.py:decide_answer` — the single `/ask` decision point with **two refusal gates**: (1) cheap pre-LLM floor (best cosine score < `ASK_SCORE_FLOOR`, no model call), (2) model soft-refusal (`GroundedAnswer.can_answer=False`). Either gate → a language-matched refusal with empty citations, so hard and soft refusals share one contract (`refused=True ⇒ citations=[]`).
 - `?retrieve=false` on `/ask` → `generate_plain_answer` (no book context, no citations, skips the ready-gate) — the no-retrieval baseline for UI comparison.
+- `services/eval.py` — standalone offline retrieval-eval harness (Recall@k / MRR over hand-written `EvalCase`s). Ground truth is *durable* (page range + section substring), resolved to current `chunk_index`es at eval time via `resolve_expected`; `out_of_scope` cases are excluded from scoring. Not part of the request path — driven from the `scripts/*_inspect.py` spikes.
 
 ### Embeddings (`services/embeddings.py`)
 
@@ -100,3 +101,4 @@ before writing Next code.
 - `scripts/*_inspect.py` and `scripts/probe_*.py` are throwaway exploration/spikes run standalone, not part of the app; they use `get_connection()`, never the pool.
 - `docs/v1/stepN/` follows a shaping workflow, in order: `shaping.md` (problem + chosen Shape) → `breadboard.md` (Shape detailed into affordances/wiring) → `slices.md` (vertical increments V1, V2, …) → `V{1,2,3}-plan.md` (per-slice implementation plans). `inspection-notes.md` is a separate dated hands-on verification doc, not a planning step. Docs carry a `shaping: true|false` frontmatter flag. Read the latest step to understand current work-in-flight intent.
 - Dynamic SQL: use `psycopg.sql.SQL/Identifier/Literal`, not f-strings (psycopg rejects f-string SQL). Prefer `assert x is not None` over `# type: ignore` for Optional narrowing.
+- **Code comments must not reference breadboard/shaping IDs** (`U6`, `N3`, `D5`, `A4`, `R7.1`, `V1`/`V2`, …). Those live in `docs/v1/stepN/`, not the code. Comment only genuinely non-obvious *why*; don't narrate what the code already says.
