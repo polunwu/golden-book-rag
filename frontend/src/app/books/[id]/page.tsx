@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getBook } from "@/api/books";
 import { AskPanel } from "@/components/books/AskPanel";
+import { FailedPanel } from "@/components/books/FailedPanel";
+import { ProcessingPanel } from "@/components/books/ProcessingPanel";
 import { StatusBadge } from "@/components/books/StatusBadge";
 import { ErrorState, Skeleton } from "@/components/ui";
 import { bookTitle } from "@/lib/format";
@@ -56,7 +58,13 @@ export default function BookDetail({
               </h1>
               <StatusBadge status={book!.status} />
             </header>
-            <AskPanel key={id} bookId={id} status={book!.status} />
+            {book!.status === "ready" ? (
+              <AskPanel key={id} bookId={id} status={book!.status} />
+            ) : book!.status === "failed" ? (
+              <FailedPanel errorMessage={book!.error_message} />
+            ) : (
+              <ProcessingPanel status={book!.status} />
+            )}
           </>
         )}
       </div>

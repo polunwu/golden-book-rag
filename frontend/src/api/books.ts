@@ -24,16 +24,19 @@ export async function ask(
   });
 }
 
-// New uploads only — `book_id` (re-upload) is a later step. The browser sets
-// the multipart content-type (with boundary) for a FormData body; `request`
-// leaves it alone.
+// `bookId` present ⇒ re-upload: the backend upserts that row to `pending` and
+// clears `error_message`. Omitted ⇒ a fresh upload. The browser sets the
+// multipart content-type (with boundary) for a FormData body; `request` leaves
+// it alone.
 export async function uploadBook(
   file: File,
   title: string,
+  bookId?: string,
 ): Promise<UploadResponse> {
   const form = new FormData();
   form.append("file", file);
   form.append("title", title);
+  if (bookId) form.append("book_id", bookId);
   return request("/books/upload", UploadResponse, {
     method: "POST",
     body: form,

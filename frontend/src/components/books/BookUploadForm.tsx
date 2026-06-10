@@ -45,33 +45,40 @@ export function BookUploadForm({
   pending,
   serverError,
   onDirty,
+  initialTitle,
 }: {
   onSubmit: (file: File, title: string) => void;
   pending: boolean;
   serverError: string | null;
   onDirty: () => void;
+  // Re-upload seeds the existing title; a fresh upload leaves it empty (and the
+  // filename autofills it on pick).
+  initialTitle?: string;
 }) {
   const {
     register,
     handleSubmit,
     setValue,
+    getValues,
     control,
     formState: { errors, isValid },
   } = useForm<UploadFormValues>({
     resolver: standardSchemaResolver(uploadFormSchema),
     mode: "onChange",
+    defaultValues: initialTitle ? { title: initialTitle } : undefined,
   });
 
   const [dragActive, setDragActive] = useState(false);
 
   // `file` is value-typed (a File, not the input's FileList), so set it
   // imperatively rather than via register's ref; shouldValidate runs the
-  // resolver and the title autofills from the filename. Shared by the picker,
-  // drop, and Replace paths.
+  // resolver. Shared by the picker, drop, and Replace paths. The title autofills
+  // from the filename only when empty, so a seeded re-upload title is preserved.
   const handleFile = (f: File | undefined) => {
     onDirty();
     setValue("file", f as File, { shouldValidate: true });
-    if (f) setValue("title", stripPdf(f.name), { shouldValidate: true });
+    if (f && !getValues("title")?.trim())
+      setValue("title", stripPdf(f.name), { shouldValidate: true });
   };
 
   const file = useWatch({ control, name: "file" });

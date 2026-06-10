@@ -17,7 +17,11 @@ export function StatusBadge({ status }: { status: BookStatus }) {
             className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${dot}`}
           />
         )}
-        <span className={`relative inline-flex h-2 w-2 rounded-full ${dot}`} />
+        {/* Eased color so the live poll's pending→processing→ready flip glides
+            rather than hard-cutting (reduced-motion neutralizes it globally). */}
+        <span
+          className={`relative inline-flex h-2 w-2 rounded-full transition-colors duration-500 ${dot}`}
+        />
       </span>
       {label}
     </span>

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Upload } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { listBooks } from "@/api/books";
+import type { BookOut } from "@/api/schemas/book";
+import { refetchIntervalFor } from "@/lib/status";
 import { BookCard } from "@/components/books/BookCard";
 import { BookUploadDialog } from "@/components/books/BookUploadDialog";
 import { Button, Empty, ErrorState, Skeleton } from "@/components/ui";
@@ -25,9 +27,22 @@ export default function Library() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["books"],
     queryFn: listBooks,
+    refetchInterval: (query) => refetchIntervalFor(query.state.data),
   });
 
-  const [open, setOpen] = useState(false);
+  // Upload modal state: a fresh upload carries no id; a re-upload seeds the
+  // failed book's id + title (the dialog's re-upload mode).
+  const [upload, setUpload] = useState<{
+    open: boolean;
+    bookId?: string;
+    title?: string | null;
+  }>({ open: false });
+
+  const openUpload = () => setUpload({ open: true });
+  const closeUpload = () => setUpload((u) => ({ ...u, open: false }));
+  const onReupload = (book: BookOut) =>
+    setUpload({ open: true, bookId: book.id, title: book.title });
+
   const count = data?.length ?? 0;
 
   return (
@@ -44,7 +59,7 @@ export default function Library() {
           )}
         </div>
         <Button
-          onClick={() => setOpen(true)}
+          onClick={openUpload}
           className="flex shrink-0 items-center gap-2"
         >
           <Upload aria-hidden className="h-4 w-4" />
@@ -60,17 +75,22 @@ export default function Library() {
         <Empty
           label="Your library is empty"
           hint="Books you add will appear here, ready to search and ask."
-          action={<Button onClick={() => setOpen(true)}>Upload book</Button>}
+          action={<Button onClick={openUpload}>Upload book</Button>}
         />
       ) : (
         <ul className="divide-y divide-rule border-y border-rule">
           {data!.map((book) => (
-            <BookCard key={book.id} book={book} />
+            <BookCard key={book.id} book={book} onReupload={onReupload} />
           ))}
         </ul>
       )}
 
-      <BookUploadDialog open={open} onClose={() => setOpen(false)} />
+      <BookUploadDialog
+        open={upload.open}
+        onClose={closeUpload}
+        bookId={upload.bookId}
+        initialTitle={upload.title}
+      />
     </section>
   );
 }
