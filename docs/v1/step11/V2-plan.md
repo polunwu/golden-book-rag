@@ -27,8 +27,9 @@ against the running backend with a real PDF.
 ## What V1 already shipped (re-scoping V2)
 
 V1's implementation pulled the **explicit close** (slices U8) forward: the
-`<dialog>` already closes on the **×** button, on backdrop click (`onClick`
-target === dialog), and on **Esc** (native `onClose` → `onClose` prop). So U8 is
+`<dialog>` closes on the **×** button and on **Esc** (native `onClose` →
+`onClose` prop). Backdrop-click-close is **not** wired (decided out — see
+V3-plan.md D4). So U8 is
 **done** — V2 does **not** add a Cancel/close affordance. It stays as-is; the
 only V2 interaction with it is the deliberate choice **not** to block close while
 a mutation is in flight (a closed-mid-upload `onClose()` is a harmless no-op —
@@ -237,8 +238,8 @@ the form:
 - The remount on reopen (`key={String(open)}`) gives a fresh RHF instance (empty
   fields, no `errors`); combined with `onDirty`, a reopened dialog never shows a
   stale message.
-- **Close affordances unchanged** — ×, backdrop, Esc all still call `onClose`.
-  Not disabled during `pending` (see re-scoping note).
+- **Close affordances unchanged** — × and Esc still call `onClose` (no backdrop
+  close). Not disabled during `pending` (see re-scoping note).
 
 ## Styling (V2 = functional; polish is V3)
 
@@ -268,8 +269,8 @@ dialog from `/`:
    → dialog closes → **pending** card appears (V1 path intact).
 6. **Busy state** — on a slow/large valid upload, the submit reads **Uploading…**
    and is disabled until the `202`.
-7. **Close still works** — ×, backdrop click, and Esc each close the dialog
-   (including mid-upload, harmlessly); reopening shows empty fields and no stale
+7. **Close still works** — × and Esc each close the dialog (including
+   mid-upload, harmlessly); reopening shows empty fields and no stale
    error.
 8. `yarn lint` + typecheck clean.
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Upload } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { listBooks } from "@/api/books";
 import { BookCard } from "@/components/books/BookCard";
@@ -42,7 +43,13 @@ export default function Library() {
             </p>
           )}
         </div>
-        <Button onClick={() => setOpen(true)}>Upload</Button>
+        <Button
+          onClick={() => setOpen(true)}
+          className="flex shrink-0 items-center gap-2"
+        >
+          <Upload aria-hidden className="h-4 w-4" />
+          Upload book
+        </Button>
       </header>
 
       {isLoading ? (
@@ -53,7 +60,7 @@ export default function Library() {
         <Empty
           label="Your library is empty"
           hint="Books you add will appear here, ready to search and ask."
-          action={<Button onClick={() => setOpen(true)}>Upload</Button>}
+          action={<Button onClick={() => setOpen(true)}>Upload book</Button>}
         />
       ) : (
         <ul className="divide-y divide-rule border-y border-rule">

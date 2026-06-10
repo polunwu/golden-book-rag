@@ -97,6 +97,11 @@ before writing Next code.
 - Only `listBooks()` is wired (the connectivity smoke). App is deliberately **non-indexed** (`metadata.robots` noindex in `app/layout.tsx` + `app/robots.ts` `Disallow: /`).
 - **Component layout — by resource, with `ui/` for the generic.** Resource components live in `src/components/<resource>/` (e.g. `books/` holds `BookCard`, `StatusBadge`, `BookUploadDialog`/`BookUploadForm`, and the Ask feature `AskPanel`/`AnswerView`/`Citations` — a feature folds into its owning resource, not its own folder). `src/components/ui/` holds **both** low-level primitives (`Button`/`Input`/`Notice`/`Skeleton`) **and** generic cross-resource state (`Empty`/`ErrorState`), re-exported from `ui/index.ts`. **Import ui via the barrel** (`@/components/ui`), resource components **by path** (`@/components/books/…`). Name components resource-prefixed (`BookUploadDialog`, not `UploadDialog`).
 - **Imports use the `@/` alias for any cross-directory path** (`@/*` → `src/*`), never parent-traversal relatives (`../`, `../../`). Same-directory siblings and barrels stay `./` (e.g. `ui/index.ts` re-exporting `./Button`, `api/books.ts` importing `./client`). So: `@/components/ui`, `@/api/books`, `@/lib/format` — not `../../api/...`.
+- **Icons come from `lucide-react`, not hand-rolled inline `<svg>`** (inline SVG
+  paths are unmaintainable). Import the named icon (`import { Upload } from "lucide-react"`)
+  and size/color it with Tailwind (`className="h-4 w-4 text-ink-muted"`, currentColor);
+  use lucide's default `strokeWidth`. Add `aria-hidden` when the icon is decorative
+  beside a text label.
 - **Separate the form from its container.** A dialog/modal owns the *mechanism* (native `<dialog>` open/close sync, the `useMutation` + `invalidateQueries`); a presentational `<…Form>` owns the *fields + validation* and calls back via `onSubmit(...)`. The container remounts the form (`key={String(open)}`) to reset fields rather than threading a manual `reset()`. **Client-side form validation uses a colocated zod schema** in the form file (e.g. `uploadFormSchema`) — kept distinct from the API-mirror schemas under `src/api/schemas/`.
 
 ## Conventions worth knowing

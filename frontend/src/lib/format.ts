@@ -26,3 +26,10 @@ export function pageRange(
 export function breadcrumb(section_path: string[] | null): string | null {
   return section_path?.length ? section_path.join(" › ") : null;
 }
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}

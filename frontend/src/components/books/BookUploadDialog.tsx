@@ -37,10 +37,12 @@ export function BookUploadDialog({
     <dialog
       ref={ref}
       onClose={onClose}
-      className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl border border-rule bg-paper p-6 text-ink backdrop:bg-ink/20"
+      className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl border border-rule bg-paper p-6 text-ink opacity-0 backdrop:bg-ink/20 backdrop:opacity-0 transition-discrete duration-150 transition-[opacity,overlay,display] open:opacity-100 open:backdrop:opacity-100 starting:open:opacity-0 starting:open:backdrop:opacity-0"
     >
       <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg tracking-tight text-ink">Upload a book</h2>
+        <h2 className="text-lg font-medium tracking-tight text-ink">
+          Upload a book
+        </h2>
         <button
           type="button"
           onClick={onClose}
