@@ -24,6 +24,7 @@ in-browser PDF viewer with page rendering
 reranking / hybrid-search UI controls
 mobile-first / offline
 admin / eval dashboards
+chunk browser / raw search view (debug tooling, not user-facing value)
 ```
 
 Keep the same discipline as the backend MVP: ship the core loop first, leave the
@@ -157,7 +158,6 @@ Source passage (chunk text + page range + section breadcrumb)
 ### 2. Book page (`/books/{id}`)
 - Header: title, status, page/chunk count, delete
 - Primary: **Ask** panel
-- Secondary tab: **Browse chunks** (`GET /books/{id}/chunks`, paginated)
 
 ### 3. Ask panel
 - Question input + optional `k` control (default 5; backend allows 1–20)
@@ -168,23 +168,13 @@ Source passage (chunk text + page range + section breadcrumb)
 - Loading + error (incl. `409 not ready`) states
 - Success criteria: can see the answer produced *with* RAG retrieval and the answer produced *without* the retrieval process (plain LLM), side by side for comparison
 
-### 4. Search (optional for v1, same plumbing as Ask)
-- Reuse the query box → `POST /books/{id}/search` → ranked `SearchHit` list
-- Lets us validate retrieval visually before/independently of LLM answers
-- Could ship as a "Sources" toggle rather than a separate screen
-
-### 5. Chunk browser
-- Paginated table/list of `ChunkOut`
-- Columns: index, page range, section breadcrumb, text preview
-- Useful for debugging ingestion quality
-
-### 6. Upload (modal or `/upload`)
+### 4. Upload (modal or `/upload`)
 - File picker (accept `application/pdf`), title field
 - `POST /books/upload` → on `202`, drop the new book into the library as `pending`
 - Client-side guard against oversized files before the 413 round-trips
 - Surface 413 / 422 errors inline
 
-### 7. Processing / status
+### 5. Processing / status
 - Poll `GET /books/{id}` until `ready` or `failed`
 - Status badge component: `pending`, `processing` (spinner), `ready` (enabled), `failed` (show `error_message`, offer re-upload)
 - Disable ask/search until `ready` (mirrors backend `409`)
@@ -212,10 +202,9 @@ Numbering continues from the backend MVP, which finished at Step 7.
 Step 8   Foundation   typed API client, zod schemas, layout shell, env config
 Step 9   Library      list books, status badges, empty state
 Step 10  Ask          ask panel, answer rendering, citations, refusal state
-Step 11  Sources      chunk browser + (optional) raw search view
-Step 12  Upload       upload form, optimistic pending card, error handling
-Step 13  Status       polling hook, processing/failed UX, re-upload
-Step 14  Delete       delete book + confirm
+Step 11  Upload       upload form, optimistic pending card, error handling
+Step 12  Status       polling hook, processing/failed UX, re-upload
+Step 13  Delete       delete book + confirm
 ```
 
 ---
@@ -228,7 +217,6 @@ The frontend MVP is successful if a user can, with no API client:
 - ask a question and get a grounded answer
 - see and open the cited passages with correct page numbers
 - understand when the system refuses to answer
-- browse the parsed chunks of a book
 - delete a book
 
 That is a complete, honest client over the existing RAG backend.
