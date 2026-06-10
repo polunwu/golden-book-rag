@@ -37,11 +37,6 @@ export function BookUploadDialog({
     <dialog
       ref={ref}
       onClose={onClose}
-      // A click whose target is the dialog itself (not its children) is a
-      // backdrop click — close on it.
-      onClick={(e) => {
-        if (e.target === ref.current) onClose();
-      }}
       className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl border border-rule bg-paper p-6 text-ink backdrop:bg-ink/20"
     >
       <div className="flex items-start justify-between gap-4">
@@ -59,6 +54,11 @@ export function BookUploadDialog({
       <BookUploadForm
         key={String(open)}
         onSubmit={(file, title) => m.mutate({ file, title })}
+        pending={m.isPending}
+        serverError={m.error ? (m.error as Error).message : null}
+        // Editing a field clears a stale server error at its source; reset() is
+        // a no-op once the mutation is idle, so per-keystroke calls are cheap.
+        onDirty={() => m.reset()}
       />
     </dialog>
   );
