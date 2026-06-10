@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { BookOut } from "../api/schemas/book";
-import { bookTitle, formatDate } from "../lib/format";
+import type { BookOut } from "@/api/schemas/book";
+import { bookTitle, formatDate } from "@/lib/format";
 import { StatusBadge } from "./StatusBadge";
 
 export function BookCard({ book }: { book: BookOut }) {

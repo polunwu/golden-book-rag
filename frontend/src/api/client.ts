@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { API_BASE_URL } from "../lib/config";
+import { API_BASE_URL } from "@/lib/config";
 
 // Typed error: backend returns { detail: string }; map status + detail to a
 // friendly message. `message` (Error.message) is what TanStack Query surfaces;

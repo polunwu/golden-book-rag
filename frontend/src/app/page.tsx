@@ -1,11 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listBooks } from "../api/books";
-import { BookCard } from "../components/BookCard";
-import { Empty } from "../components/Empty";
-import { ErrorState } from "../components/ErrorState";
-import { Skeleton } from "../components/ui";
+import { listBooks } from "@/api/books";
+import { BookCard } from "@/components/books/BookCard";
+import { BookUploadDialog } from "@/components/books/BookUploadDialog";
+import { Button, Empty, ErrorState, Skeleton } from "@/components/ui";
 
 function LibrarySkeleton() {
   return (
@@ -26,19 +26,23 @@ export default function Library() {
     queryFn: listBooks,
   });
 
+  const [open, setOpen] = useState(false);
   const count = data?.length ?? 0;
 
   return (
     <section>
-      <header className="mb-6">
-        <h1 className="text-balance text-2xl tracking-tight text-ink">
-          Your library
-        </h1>
-        {count > 0 && (
-          <p className="mt-1 font-sans text-sm text-ink-muted">
-            {count} book{count === 1 ? "" : "s"}
-          </p>
-        )}
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-balance text-2xl tracking-tight text-ink">
+            Your library
+          </h1>
+          {count > 0 && (
+            <p className="mt-1 font-sans text-sm text-ink-muted">
+              {count} book{count === 1 ? "" : "s"}
+            </p>
+          )}
+        </div>
+        <Button onClick={() => setOpen(true)}>Upload</Button>
       </header>
 
       {isLoading ? (
@@ -49,6 +53,7 @@ export default function Library() {
         <Empty
           label="Your library is empty"
           hint="Books you add will appear here, ready to search and ask."
+          action={<Button onClick={() => setOpen(true)}>Upload</Button>}
         />
       ) : (
         <ul className="divide-y divide-rule border-y border-rule">
@@ -57,6 +62,8 @@ export default function Library() {
           ))}
         </ul>
       )}
+
+      <BookUploadDialog open={open} onClose={() => setOpen(false)} />
     </section>
   );
 }

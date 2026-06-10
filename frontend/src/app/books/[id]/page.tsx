@@ -4,10 +4,9 @@ import { use } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getBook } from "@/api/books";
-import { AskPanel } from "@/components/AskPanel";
-import { ErrorState } from "@/components/ErrorState";
-import { StatusBadge } from "@/components/StatusBadge";
-import { Skeleton } from "@/components/ui";
+import { AskPanel } from "@/components/books/AskPanel";
+import { StatusBadge } from "@/components/books/StatusBadge";
+import { ErrorState, Skeleton } from "@/components/ui";
 import { bookTitle } from "@/lib/format";
 
 function BookSkeleton() {

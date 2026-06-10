@@ -4,9 +4,8 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { BookStatus } from "@/api/schemas/book";
 import { ask } from "@/api/books";
-import { AnswerView } from "@/components/AnswerView";
-import { ErrorState } from "@/components/ErrorState";
-import { Button, Input, Notice, Skeleton } from "@/components/ui";
+import { AnswerView } from "@/components/books/AnswerView";
+import { Button, ErrorState, Input, Notice, Skeleton } from "@/components/ui";
 
 // One column's worth of loading placeholder — prose lines + two faux source
 // cards, mirroring the real answer layout so the resolve doesn't reflow.

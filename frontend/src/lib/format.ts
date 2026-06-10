@@ -1,4 +1,4 @@
-import type { BookOut } from "../api/schemas/book";
+import type { BookOut } from "@/api/schemas/book";
 
 export function formatDate(iso: string): string {
   const d = new Date(iso);

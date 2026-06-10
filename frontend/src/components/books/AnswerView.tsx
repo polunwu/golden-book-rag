@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Citation } from "@/api/books";
-import { Citations } from "@/components/Citations";
+import { Citations } from "@/components/books/Citations";
 
 // Split on a citation token, which may group several sources — the model emits
 // `[1]` but also `[1, 2]`. The capturing group puts text at even indices and the

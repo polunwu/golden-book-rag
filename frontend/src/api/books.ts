@@ -1,5 +1,5 @@
 import { request } from "./client";
-import { BookList, BookOut } from "./schemas/book";
+import { BookList, BookOut, UploadResponse } from "./schemas/book";
 import { AskResponse, type AskRequest } from "./schemas/ask";
 
 export async function listBooks(): Promise<BookOut[]> {
@@ -24,5 +24,22 @@ export async function ask(
   });
 }
 
+// New uploads only — `book_id` (re-upload) is a later step. The browser sets
+// the multipart content-type (with boundary) for a FormData body; `request`
+// leaves it alone.
+export async function uploadBook(
+  file: File,
+  title: string,
+): Promise<UploadResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("title", title);
+  return request("/books/upload", UploadResponse, {
+    method: "POST",
+    body: form,
+  });
+}
+
 export type { BookOut };
+export type { UploadResponse } from "./schemas/book";
 export type { AskResponse, Citation } from "./schemas/ask";

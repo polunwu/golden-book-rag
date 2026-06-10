@@ -1,4 +1,4 @@
-import type { BookStatus } from "../api/schemas/book";
+import type { BookStatus } from "@/api/schemas/book";
 
 const STATUS: Record<BookStatus, { label: string; dot: string }> = {
   pending: { label: "Pending", dot: "bg-status-pending" },
