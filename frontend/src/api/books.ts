@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { request } from "./client";
 import { BookList, BookOut, UploadResponse } from "./schemas/book";
 import { AskResponse, type AskRequest } from "./schemas/ask";
@@ -41,6 +42,12 @@ export async function uploadBook(
     method: "POST",
     body: form,
   });
+}
+
+// `204 No Content` — the wrapper's 204 path validates against `z.void()`
+// (no body to parse). Backend cascades chunks/embeddings and unlinks the PDF.
+export async function deleteBook(id: string): Promise<void> {
+  await request(`/books/${id}`, z.void(), { method: "DELETE" });
 }
 
 export type { BookOut };
