@@ -5,7 +5,10 @@ import numpy as np
 from services.chunker import Chunk
 from services.embeddings import Embedding, embed_query
 
-Retriever = Callable[[list[float], int], list[int]]
+# A retriever maps (query_vec, query_text, k) -> ranked chunk_indices. The text is
+# passed alongside the vector so lexical/hybrid arms can match it; dense arms ignore
+# it. (search_chunks-backed dense, pg_trgm lexical, RRF hybrid all share this sig.)
+Retriever = Callable[[list[float], str, int], list[int]]
 
 
 class EvalCase(TypedDict, total=False):
@@ -16,6 +19,7 @@ class EvalCase(TypedDict, total=False):
     expected_section_substring: str
     expected_keywords: list[str]
     out_of_scope: bool
+    kind: str  # "semantic" | "lexical" — groups misses for the hybrid-eval gate
 
 
 class CaseResult(TypedDict):
@@ -38,6 +42,7 @@ class EvalReport(TypedDict):
 def retrieve(
     embeddings: list[Embedding],
     query_vec: list[float],
+    query_text: str,  # unused: this in-memory dense retriever needs only the vector
     k: int = 5,
 ) -> list[int]:
     q = np.asarray(query_vec, dtype=np.float32)
@@ -92,7 +97,7 @@ def run_eval(
                     f"check page range / section substring"
                 )
         qv = embed_query(case["query"])
-        top = retriever(qv, k)
+        top = retriever(qv, case["query"], k)
         hit_rank = next(
             (r for r, idx in enumerate(top, start=1) if idx in expected),
             None,
