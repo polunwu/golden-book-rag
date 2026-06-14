@@ -26,6 +26,8 @@ export class ApiError extends Error {
         return "This book isn't ready yet.";
       case 413:
         return "That file is too large.";
+      case 429:
+        return "You've reached today's question limit. Try again tomorrow.";
       case 422:
         return detail || "Invalid request.";
       default:

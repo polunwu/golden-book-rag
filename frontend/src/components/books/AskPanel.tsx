@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { BookStatus } from "@/api/schemas/book";
 import { ask } from "@/api/books";
+import { ApiError } from "@/api/client";
 import { AnswerView } from "@/components/books/AnswerView";
 import { Button, ErrorState, Input, Notice, Skeleton } from "@/components/ui";
 
@@ -57,6 +58,11 @@ export function AskPanel({
 
   const toggleEnabled = ready && !mutation.isPending;
 
+  // The daily cap is a benign shared-quota state, not a failure — surface it as a
+  // calm Notice, distinct from a real error (and from a content refusal).
+  const limitReached =
+    mutation.error instanceof ApiError && mutation.error.status === 429;
+
   return (
     <div className="mt-8">
       {!ready && (
@@ -98,11 +104,16 @@ export function AskPanel({
         Compare with a plain LLM (no retrieval)
       </label>
 
-      {mutation.error && (
-        <div className="mt-6">
-          <ErrorState detail={(mutation.error as Error).message} />
-        </div>
-      )}
+      {mutation.error &&
+        (limitReached ? (
+          <Notice className="mt-6">
+            You&rsquo;ve reached today&rsquo;s question limit. Try again tomorrow.
+          </Notice>
+        ) : (
+          <div className="mt-6">
+            <ErrorState detail={(mutation.error as Error).message} />
+          </div>
+        ))}
 
       {mutation.isPending ? (
         compare ? (

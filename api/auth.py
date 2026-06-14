@@ -7,20 +7,26 @@ routers just declare `Depends(require_admin)` / `Depends(get_caller)`.
 """
 import hmac
 import os
+import uuid
 from dataclasses import dataclass
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # auto_error=False so we own the missing-vs-wrong split (401 vs 403); it also
 # emits the OpenAPI bearer scheme, giving /docs an Authorize button on gated routes.
 bearer = HTTPBearer(auto_error=False)
 
+# Anonymous guest id, minted by get_caller. Feeds per-guest record buckets for the
+# daily cap — never the enforced unit (that's a global pool); see services.rate_limit.
+GUEST_COOKIE = "bookrag_gid"
+_GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # ~1 year
+
 
 @dataclass
 class Caller:
     is_admin: bool
-    # guest_id (anonymous cookie) arrives in V2 with the daily cap.
+    guest_id: str  # anonymous cookie id (record bucket for the guest daily cap)
 
 
 def _admin_secret() -> str:
@@ -29,6 +35,8 @@ def _admin_secret() -> str:
 
 
 def get_caller(
+    request: Request,
+    response: Response,
     cred: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> Caller:
     """The only place caller identity is established."""
@@ -42,7 +50,21 @@ def get_caller(
             cred.credentials.encode("utf-8"), secret.encode("utf-8")
         )
     )
-    return Caller(is_admin=is_admin)
+
+    # Read-or-mint the anonymous guest id. set_cookie on the injected Response
+    # propagates on routes returning a model; delete_book returns its own
+    # Response so its (admin-only) caller won't carry the Set-Cookie — fine.
+    gid = request.cookies.get(GUEST_COOKIE)
+    if not gid:
+        gid = uuid.uuid4().hex
+        response.set_cookie(
+            GUEST_COOKIE,
+            gid,
+            max_age=_GUEST_COOKIE_MAX_AGE,
+            samesite="lax",
+            httponly=True,
+        )
+    return Caller(is_admin=is_admin, guest_id=gid)
 
 
 def require_admin(

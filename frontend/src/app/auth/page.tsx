@@ -15,7 +15,9 @@ export default function AuthPage() {
 
   return (
     <section className="mx-auto max-w-sm">
-      <h1 className="text-2xl tracking-tight text-ink">Admin access</h1>
+      <h1 className="text-balance text-2xl tracking-tight text-ink">
+        Admin access
+      </h1>
 
       {authed ? (
         <div className="mt-6">

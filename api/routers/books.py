@@ -11,7 +11,7 @@ from fastapi import (
 )
 from psycopg.rows import DictRow
 
-from api.auth import Caller, require_admin
+from api.auth import Caller, get_caller, require_admin
 from api.deps import get_conn
 from api.schemas import (
     AskRequest, AskResponse, BookList, BookOut, ChunkOut, ChunkPage, Citation,
@@ -20,6 +20,7 @@ from api.schemas import (
 from services.embeddings import embed_query
 from services.generate import decide_answer, generate_plain_answer
 from services.ingest import run_ingest
+from services.rate_limit import enforce_guest_quota
 from services.retrieval import search_chunks
 
 router = APIRouter(prefix="/books", tags=["books"])
@@ -163,6 +164,7 @@ def search_book(
     book_id: UUID,
     body: SearchRequest,
     conn: psycopg.Connection[DictRow] = Depends(get_conn),
+    caller: Caller = Depends(get_caller),
 ) -> SearchResponse:
     row = conn.execute(
         "SELECT status FROM books WHERE id = %s", (book_id,)
@@ -175,6 +177,8 @@ def search_book(
             detail=f"book not ready for search (status={row['status']})",
         )
 
+    # Guest cap before any Gemini call (admin → no-op).
+    enforce_guest_quota(conn, caller, "search")
     query_vec = embed_query(body.query)
     hits = search_chunks(conn, book_id, query_vec, body.k)
     return SearchResponse(
@@ -195,12 +199,17 @@ def ask_book(
     body: AskRequest,
     retrieve: bool = Query(True),
     conn: psycopg.Connection[DictRow] = Depends(get_conn),
+    caller: Caller = Depends(get_caller),
 ) -> AskResponse:
     row = conn.execute(
         "SELECT status FROM books WHERE id = %s", (book_id,)
     ).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="book not found")
+
+    # Guest cap before BOTH Gemini paths — the retrieve=false branch still spends
+    # via generate_plain_answer (admin → no-op).
+    enforce_guest_quota(conn, caller, "ask")
 
     if not retrieve:
         # No-retrieval baseline: plain LLM, no book context, no citations. Skips

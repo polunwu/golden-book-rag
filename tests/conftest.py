@@ -104,6 +104,16 @@ def upload_dir(tmp_path, monkeypatch: pytest.MonkeyPatch):
     return d
 
 
+@pytest.fixture(autouse=True)
+def _reset_usage() -> None:
+    """Empty the guest-cap counters before each test. The global pool is a real
+    shared table, so without this the session's counts accumulate across tests
+    and would trip the cap in unrelated ask/search tests."""
+    with get_pool().connection() as conn:
+        conn.execute("TRUNCATE ask_usage")
+        conn.commit()
+
+
 @pytest.fixture
 def book_ids() -> Iterator[list[uuid.UUID]]:
     """Track ids created during the test; DELETE CASCADE on teardown."""
