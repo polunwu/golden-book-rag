@@ -17,6 +17,7 @@ A Next.js frontend lives in `frontend/` (Step 8 onward — see the Frontend sect
 - `make db-migrate` — `alembic upgrade head` (run after db-up before tests/serving).
 - `make db-reset` — drops the volume (all data lost) + recreates; use on schema changes that aren't migration-covered.
 - `make db-shell` — psql into the container.
+- `make db-schema` — print the live DB schema (`pg_dump --schema-only`, read-only) — the quickest way to see the full schema; migrations are the source of truth, so this reflects them.
 - `make api-dev` — `uvicorn api.main:app --reload --port 8000`.
 - `make test` — `pytest tests/ -v`. **Requires db-up + db-migrate.** Gemini is never called (stubbed, see below).
 - Single test: `uv run pytest tests/test_ask.py::test_name -v`.
@@ -60,7 +61,7 @@ Gemini `gemini-embedding-001`, Matryoshka-truncated to **1536** dims, **L2-norma
 
 ## Data model
 
-`books` (id, title, file_path, created_at, **status** `book_status` enum, **error_message**) → `chunks` (text, page_start/end, section_path `TEXT[]`, section_title/level, chunk_index) → `chunk_embeddings` (chunk_id PK, `vector(1536)`, embedding_model). `chunks → chunk_embeddings` is `ON DELETE CASCADE`; deleting a book cascades to chunks. Ingest is **idempotent per book_id**: `ingest_book` deletes the book's chunks (cascades embeddings) and re-inserts in one transaction. `db/schema.sql` is the reference DDL but **alembic migrations are the source of truth** (the `status`/`error_message` columns exist only in migrations).
+`books` (id, title, file_path, created_at, **status** `book_status` enum, **error_message**) → `chunks` (text, page_start/end, section_path `TEXT[]`, section_title/level, chunk_index) → `chunk_embeddings` (chunk_id PK, `vector(1536)`, embedding_model). `chunks → chunk_embeddings` is `ON DELETE CASCADE`; deleting a book cascades to chunks. Ingest is **idempotent per book_id**: `ingest_book` deletes the book's chunks (cascades embeddings) and re-inserts in one transaction. **Alembic migrations are the source of truth** for the schema.
 
 ## Testing
 

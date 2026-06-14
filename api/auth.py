@@ -17,8 +17,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 # emits the OpenAPI bearer scheme, giving /docs an Authorize button on gated routes.
 bearer = HTTPBearer(auto_error=False)
 
-# Anonymous guest id, minted by get_caller. Feeds per-guest record buckets for the
-# daily cap — never the enforced unit (that's a global pool); see services.rate_limit.
+# Anonymous guest id, minted by get_caller. Kept for a future per-guest cap; the
+# enforced daily cap today is a global pool (see services.rate_limit), not per-guest.
 GUEST_COOKIE = "bookrag_gid"
 _GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # ~1 year
 
@@ -26,7 +26,7 @@ _GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # ~1 year
 @dataclass
 class Caller:
     is_admin: bool
-    guest_id: str  # anonymous cookie id (record bucket for the guest daily cap)
+    guest_id: str  # anonymous cookie id (reserved for a future per-guest cap)
 
 
 def _admin_secret() -> str:

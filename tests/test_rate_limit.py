@@ -1,5 +1,5 @@
 """Guest daily cap (V2): global pools for ask + search, 429 before any Gemini
-call, admin uncapped, anonymous cookie minted for per-guest record buckets.
+call, admin uncapped, anonymous cookie minted.
 
 Gemini is stubbed (conftest._no_gemini); the counters live in `ask_usage`, reset
 before each test by the autouse `_reset_usage` fixture. Limits are read at call
@@ -117,15 +117,12 @@ def test_guest_cookie_minted_and_reused(client, book_ids):
     assert client.cookies.get("bookrag_gid") == gid
 
 
-# --- record bucket (per-guest) + enforced bucket (global) ----------------
+# --- only the enforced global bucket is counted --------------------------
 
-def test_record_and_enforced_buckets(client, book_ids):
+def test_only_global_bucket_counted(client, book_ids):
     bid = _ready_book(client, book_ids)
     for _ in range(2):
         assert client.post(f"/books/{bid}/ask", json={"query": "x"}).status_code == 200
 
     usage = _usage()
-    assert usage["global:ask"] == 2
-    guest_rows = {b: c for b, c in usage.items() if b.startswith("guest:")}
-    assert len(guest_rows) == 1
-    assert next(iter(guest_rows.values())) == 2
+    assert usage == {"global:ask": 2}  # no per-guest rows

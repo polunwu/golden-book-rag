@@ -1,4 +1,4 @@
-.PHONY: db-up db-down db-logs db-shell db-reset db-status db-migrate db-migrate-down api-dev test web
+.PHONY: db-up db-down db-logs db-shell db-schema db-reset db-status db-migrate db-migrate-down api-dev test web
 
 db-up:
 	docker compose up -d
@@ -12,6 +12,10 @@ db-logs:
 
 db-shell:
 	docker compose exec db psql -U $${POSTGRES_USER:-bookrag} -d $${POSTGRES_DB:-bookrag}
+
+# Print the live DB schema (migrations source of truth). Read-only; nothing written.
+db-schema:
+	docker compose exec -T db pg_dump -U $${POSTGRES_USER:-bookrag} -d $${POSTGRES_DB:-bookrag} --schema-only --no-owner --no-privileges
 
 db-status:
 	docker compose ps

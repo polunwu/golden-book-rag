@@ -1,8 +1,7 @@
 """Guest daily cap for the Gemini-spending routes (Ask, Search).
 
 The enforced unit is a **single global daily pool per kind** shared by all guests
-(admin excluded); an anonymous per-guest bucket is also bumped for record-keeping
-so a future per-guest cap is cheap. Counts live in `ask_usage(bucket, day)`.
+(admin excluded). Counts live in `ask_usage(bucket, day)`.
 
 `enforce_guest_quota` is called by the routers **before** any `embed_query`, so an
 over-cap request spends no Gemini.
@@ -25,7 +24,6 @@ class Caller(Protocol):
     import from `api.*`. `api.auth.Caller` satisfies it."""
 
     is_admin: bool
-    guest_id: str
 
 
 def _daily_limit(kind: str) -> int:
@@ -50,8 +48,8 @@ def check_and_increment(
 def enforce_guest_quota(
     conn: psycopg.Connection[DictRow], caller: Caller, kind: str
 ) -> None:
-    """Admin → no-op. Else bump the per-guest record bucket and the enforced
-    global bucket; if the global count exceeds the daily limit, raise 429.
+    """Admin → no-op. Else bump the enforced global bucket; if the count exceeds
+    the daily limit, raise 429.
 
     Increment-then-compare keeps each bump atomic; a blocked attempt still bumps
     the global counter (harmless — the row only grows, remaining stays at 0).
@@ -62,8 +60,7 @@ def enforce_guest_quota(
     today = datetime.now(tz=UTC).date()  # cap is per UTC day
     limit = _daily_limit(kind)
 
-    check_and_increment(conn, f"guest:{caller.guest_id}:{kind}", today)  # record
-    count = check_and_increment(conn, f"global:{kind}", today)           # enforced
+    count = check_and_increment(conn, f"global:{kind}", today)
     conn.commit()
 
     if count > limit:
