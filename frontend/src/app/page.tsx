@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listBooks } from "@/api/books";
 import type { BookOut } from "@/api/schemas/book";
 import { refetchIntervalFor } from "@/lib/status";
+import { useAuthed } from "@/lib/session";
 import { BookCard } from "@/components/books/BookCard";
 import { BookUploadDialog } from "@/components/books/BookUploadDialog";
 import { Button, Empty, ErrorState, Skeleton } from "@/components/ui";
@@ -24,6 +25,7 @@ function LibrarySkeleton() {
 }
 
 export default function Library() {
+  const canWrite = useAuthed();
   const { data, isLoading, error } = useQuery({
     queryKey: ["books"],
     queryFn: listBooks,
@@ -58,13 +60,15 @@ export default function Library() {
             </p>
           )}
         </div>
-        <Button
-          onClick={openUpload}
-          className="flex shrink-0 items-center gap-2"
-        >
-          <Upload aria-hidden className="h-4 w-4" />
-          Upload book
-        </Button>
+        {canWrite && (
+          <Button
+            onClick={openUpload}
+            className="flex shrink-0 items-center gap-2"
+          >
+            <Upload aria-hidden className="h-4 w-4" />
+            Upload book
+          </Button>
+        )}
       </header>
 
       {isLoading ? (
@@ -74,13 +78,24 @@ export default function Library() {
       ) : count === 0 ? (
         <Empty
           label="Your library is empty"
-          hint="Books you add will appear here, ready to search and ask."
-          action={<Button onClick={openUpload}>Upload book</Button>}
+          hint={
+            canWrite
+              ? "Books you add will appear here, ready to search and ask."
+              : "No books are available yet."
+          }
+          action={
+            canWrite ? <Button onClick={openUpload}>Upload book</Button> : undefined
+          }
         />
       ) : (
         <ul className="divide-y divide-rule border-y border-rule">
           {data!.map((book) => (
-            <BookCard key={book.id} book={book} onReupload={onReupload} />
+            <BookCard
+              key={book.id}
+              book={book}
+              onReupload={onReupload}
+              canWrite={canWrite}
+            />
           ))}
         </ul>
       )}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthIndicator } from "@/components/ui";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -26,6 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Link>
               <span className="font-sans text-xs text-ink-muted">
                 grounded answers from your own books
+              </span>
+              <span className="ml-auto">
+                <AuthIndicator />
               </span>
             </nav>
           </header>

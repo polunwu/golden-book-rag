@@ -9,7 +9,7 @@ import io
 import uuid
 from pathlib import Path
 
-from tests._helpers import make_pdf_bytes, pdf_part, upload
+from tests._helpers import ADMIN_HEADERS, make_pdf_bytes, pdf_part, upload
 
 
 # --- validation (no DB writes expected) ---------------------------------
@@ -19,6 +19,7 @@ def test_rejects_non_pdf_content_type(client):
         "/books/upload",
         files={"file": ("x.txt", io.BytesIO(b"hi"), "text/plain")},
         data={"title": "t"},
+        headers=ADMIN_HEADERS,
     )
     assert resp.status_code == 422
     assert "application/pdf" in resp.json()["detail"]
@@ -29,6 +30,7 @@ def test_rejects_empty_title(client):
         "/books/upload",
         files=pdf_part(make_pdf_bytes()),
         data={"title": "   "},
+        headers=ADMIN_HEADERS,
     )
     assert resp.status_code == 422
 
@@ -38,6 +40,7 @@ def test_rejects_malformed_book_id(client):
         "/books/upload",
         files=pdf_part(make_pdf_bytes()),
         data={"title": "t", "book_id": "not-a-uuid"},
+        headers=ADMIN_HEADERS,
     )
     assert resp.status_code == 422
 
@@ -47,6 +50,7 @@ def test_rejects_unknown_book_id(client):
         "/books/upload",
         files=pdf_part(make_pdf_bytes()),
         data={"title": "t", "book_id": str(uuid.uuid4())},
+        headers=ADMIN_HEADERS,
     )
     assert resp.status_code == 404
 

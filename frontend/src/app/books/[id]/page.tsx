@@ -17,6 +17,7 @@ import { ProcessingPanel } from "@/components/books/ProcessingPanel";
 import { StatusBadge } from "@/components/books/StatusBadge";
 import { ConfirmDialog, ErrorState, Skeleton } from "@/components/ui";
 import { bookTitle } from "@/lib/format";
+import { useAuthed } from "@/lib/session";
 
 function BookSkeleton() {
   return (
@@ -37,6 +38,7 @@ export default function BookDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const canWrite = useAuthed();
   const qc = useQueryClient();
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -101,15 +103,17 @@ export default function BookDetail({
                 </h1>
                 <StatusBadge status={book!.status} />
               </div>
-              <button
-                type="button"
-                onClick={openConfirm}
-                aria-label="Delete book"
-                className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-rule bg-paper px-3 py-2 font-sans text-xs font-medium text-ink-muted transition-colors hover:border-status-failed/40 hover:bg-status-failed/5 hover:text-status-failed focus:outline-none focus-visible:ring-2 focus-visible:ring-status-processing focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
-              >
-                <Trash2 aria-hidden className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Delete</span>
-              </button>
+              {canWrite && (
+                <button
+                  type="button"
+                  onClick={openConfirm}
+                  aria-label="Delete book"
+                  className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-rule bg-paper px-3 py-2 font-sans text-xs font-medium text-ink-muted transition-colors hover:border-status-failed/40 hover:bg-status-failed/5 hover:text-status-failed focus:outline-none focus-visible:ring-2 focus-visible:ring-status-processing focus-visible:ring-offset-2 focus-visible:ring-offset-paper"
+                >
+                  <Trash2 aria-hidden className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Delete</span>
+                </button>
+              )}
             </header>
             {book!.status === "ready" ? (
               <AskPanel key={id} bookId={id} status={book!.status} />

@@ -1,3 +1,4 @@
+export { AuthIndicator } from "./AuthIndicator";
 export { Button } from "./Button";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { Empty } from "./Empty";

@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 from db.connection import get_pool
 from services.chunker import Chunk
 from services.embeddings import EMBEDDING_DIM, EMBEDDING_MODEL, Embedding
+from tests._helpers import ADMIN_SECRET
 
 
 def _fake_embed_chunks(chunks: list[Chunk]) -> list[Embedding]:
@@ -82,6 +83,13 @@ def client() -> Iterator[TestClient]:
     from api.main import app
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def _admin_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set ADMIN_SECRET for the gated write routes (read at call time). Tests
+    exercising missing/wrong credentials override or clear it per-test."""
+    monkeypatch.setenv("ADMIN_SECRET", ADMIN_SECRET)
 
 
 @pytest.fixture(autouse=True)

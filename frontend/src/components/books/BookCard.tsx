@@ -7,11 +7,13 @@ import { StatusBadge } from "./StatusBadge";
 export function BookCard({
   book,
   onReupload,
+  canWrite = false,
 }: {
   book: BookOut;
   onReupload?: (book: BookOut) => void;
+  canWrite?: boolean;
 }) {
-  const canReupload = book.status === "failed" && Boolean(onReupload);
+  const canReupload = canWrite && book.status === "failed" && Boolean(onReupload);
 
   return (
     // Row so the failed-card Re-upload sits at the right, vertically centered,

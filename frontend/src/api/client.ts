@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { API_BASE_URL } from "@/lib/config";
+import { getSecret } from "@/lib/session";
 
 // Typed error: backend returns { detail: string }; map status + detail to a
 // friendly message. `message` (Error.message) is what TanStack Query surfaces;
@@ -17,6 +18,10 @@ export class ApiError extends Error {
     switch (status) {
       case 404:
         return "Not found.";
+      case 401:
+        return "Authentication required.";
+      case 403:
+        return "Those credentials were rejected.";
       case 409:
         return "This book isn't ready yet.";
       case 413:
@@ -49,6 +54,11 @@ export async function request<T>(
   ) {
     headers.set("content-type", "application/json");
   }
+
+  // The single credential-attach seam. Present on every call (FormData uploads
+  // included); the backend only enforces it on write routes.
+  const secret = getSecret();
+  if (secret) headers.set("authorization", `Bearer ${secret}`);
 
   const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
 

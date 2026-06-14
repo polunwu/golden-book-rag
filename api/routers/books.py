@@ -11,6 +11,7 @@ from fastapi import (
 )
 from psycopg.rows import DictRow
 
+from api.auth import Caller, require_admin
 from api.deps import get_conn
 from api.schemas import (
     AskRequest, AskResponse, BookList, BookOut, ChunkOut, ChunkPage, Citation,
@@ -47,6 +48,7 @@ def upload_book(
     background_tasks: BackgroundTasks,
     form: Annotated[UploadBookForm, File()],
     conn: psycopg.Connection[DictRow] = Depends(get_conn),
+    _admin: Caller = Depends(require_admin),
 ) -> UploadResponse:
     file, title, book_id = form.file, form.title, form.book_id
     if file.content_type != "application/pdf":
@@ -234,6 +236,7 @@ def ask_book(
 def delete_book(
     book_id: UUID,
     conn: psycopg.Connection[DictRow] = Depends(get_conn),
+    _admin: Caller = Depends(require_admin),
 ) -> Response:
     row = conn.execute(
         "DELETE FROM books WHERE id = %s RETURNING file_path", (book_id,)
