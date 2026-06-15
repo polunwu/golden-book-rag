@@ -1,0 +1,71 @@
+# config/deploy.yml — Kamal 2 deployment for golden-book-rag.
+# `web` (Next) is the app the internet hits; `api` + `db` are accessories.
+# Full runbook: docs/deploy-hetzner-kamal.md. Replace every <…> placeholder.
+service: golden-book-rag
+
+# PRIMARY app image = the Next.js frontend. No registry host here — Kamal prepends
+# `registry.server` below, giving ghcr.io/<user>/golden-book-rag-web.
+image: <your-github-username>/golden-book-rag-web
+
+servers:
+  web:
+    - <SERVER_IP>          # the Hetzner box
+
+ssh:
+  user: deploy             # the non-root user created in Phase 2
+
+# kamal-proxy owns 80/443 and issues a real Let's Encrypt cert for `host`.
+proxy:
+  host: books.example.com  # your domain (must match the DNS A record)
+  app_port: 3000           # the port `web` (Next) listens on
+  ssl: true                # automatic Let's Encrypt (needs 443 open + grey-cloud DNS)
+  healthcheck:
+    path: /                # Next serves / with 200; Kamal waits for this before swapping
+  response_timeout: 60     # /ask calls Gemini and can be slow; don't cut it off early
+  buffering:
+    requests: true
+    max_request_body: 110_000_000   # ~100MB PDF uploads (matches the app's MAX_UPLOAD_MB)
+
+registry:
+  server: ghcr.io
+  username: <your-github-username>
+  password:
+    - KAMAL_REGISTRY_PASSWORD        # value comes from .kamal/secrets (your PAT)
+
+builder:
+  arch: arm64                        # native build: M-series Mac (arm64) -> CAX11 (arm64). Use amd64 for an x86 server.
+  args:
+    # Next bakes the /api/* rewrite target at BUILD time -> point it at the api accessory.
+    BACKEND_ORIGIN: http://golden-book-rag-api:8000
+
+env:
+  clear:
+    NODE_ENV: production             # web needs no secrets; it only proxies to api
+
+# --- accessories: db (off-the-shelf) + api (our own image) ---
+accessories:
+  db:
+    image: pgvector/pgvector:pg17
+    host: <SERVER_IP>
+    env:
+      clear:
+        POSTGRES_USER: bookrag
+        POSTGRES_DB: bookrag
+      secret:
+        - POSTGRES_PASSWORD          # initializes the DB superuser password
+    directories:
+      - data:/var/lib/postgresql/data   # persistent DB storage on the host
+
+  api:
+    # Accessories don't build — you build + push this image yourself (Phase 7 of the runbook).
+    image: ghcr.io/<your-github-username>/golden-book-rag-api:latest
+    host: <SERVER_IP>
+    env:
+      clear:
+        UPLOAD_DIR: /data/uploads
+      secret:
+        - DATABASE_URL               # full connection string (built in .kamal/secrets)
+        - GEMINI_API_KEY
+        - ADMIN_SECRET
+    directories:
+      - uploads:/data/uploads        # uploaded PDFs persist on the host

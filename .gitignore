@@ -8,6 +8,9 @@
 !.env.example
 !**/.env.example
 
+# Kamal: real secrets stay local; the .example template is committed.
+.kamal/secrets
+
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
