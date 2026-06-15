@@ -1,0 +1,54 @@
+# Full-stack LOCAL test: db + api + web together, all in containers.
+# This mirrors production shape so you can catch problems before deploying.
+# Run with:  docker compose -f docker-compose.full.yml up --build
+# (Stop the dev DB first: `make db-down`, so ports/containers don't clash.)
+#
+# Secrets (GEMINI_API_KEY, ADMIN_SECRET) are substituted from your local .env.
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bookrag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookrag}
+      POSTGRES_DB: ${POSTGRES_DB:-bookrag}
+    volumes:
+      - bookrag_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookrag}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    environment:
+      # Inside the compose network the DB host is the service name `db`, not localhost.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bookrag}:${POSTGRES_PASSWORD:-bookrag}@db:5432/${POSTGRES_DB:-bookrag}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ADMIN_SECRET: ${ADMIN_SECRET}
+      # Persist uploads on a named volume (survives container restarts).
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - bookrag_uploads:/data/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy   # wait until Postgres is actually ready
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the Next build. Points the /api/* rewrite at the api SERVICE
+        # (compose-internal DNS), not localhost. Must be a build arg, not runtime env.
+        BACKEND_ORIGIN: http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  bookrag_pgdata:
+  bookrag_uploads:

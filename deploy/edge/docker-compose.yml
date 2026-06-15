@@ -1,0 +1,40 @@
+# Shared reverse proxy for the whole VPS (set up ONCE, used by every project).
+# caddy-docker-proxy watches docker labels and auto-builds the Caddy config,
+# auto-issuing/renewing HTTPS certs. Each app self-registers via `caddy.*` labels.
+#
+# This is host-level infra, not specific to golden-book-rag — it just lives here
+# for convenience. You can later move deploy/edge/ to its own repo.
+#
+# One-time host setup:
+#   docker network create proxy
+#   cp .env.example .env   # then edit ACME_EMAIL
+#   docker compose up -d
+
+services:
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:2.9-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Only build routes from containers on the `proxy` network (apps are
+      # multi-homed; this disambiguates which IP to proxy to).
+      CADDY_INGRESS_NETWORKS: proxy
+    labels:
+      # Global Caddy option: email for Let's Encrypt expiry notices.
+      caddy.email: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    networks:
+      - proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # read labels (read-only)
+      - caddy_data:/data       # ISSUED CERTS LIVE HERE — back this up / keep it
+      - caddy_config:/config
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:

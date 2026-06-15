@@ -1,4 +1,7 @@
-.PHONY: db-up db-down db-logs db-shell db-schema db-reset db-status db-migrate db-migrate-down api-dev test web
+.PHONY: db-up db-down db-logs db-shell db-schema db-reset db-status db-migrate db-migrate-down api-dev test web full-up full-down full-logs full-ps
+
+# Full containerized stack (db + api + web) — pre-deploy rehearsal.
+FULL := docker compose -f docker-compose.full.yml
 
 db-up:
 	docker compose up -d
@@ -42,3 +45,19 @@ test:
 # Frontend dev server (Next.js). Run alongside `make api-dev` (uvicorn) in another shell.
 web:
 	cd frontend && yarn dev
+
+# --- Full containerized stack (db + api + web) ---
+# Stop the dev DB (`make db-down`) first so ports/containers don't clash.
+# Builds images and starts everything detached. Secrets come from .env.
+full-up:
+	$(FULL) up --build -d
+	@$(FULL) ps
+
+full-down:
+	$(FULL) down
+
+full-logs:
+	$(FULL) logs -f
+
+full-ps:
+	$(FULL) ps
