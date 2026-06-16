@@ -1,6 +1,9 @@
 # config/deploy.yml — Kamal 2 deployment for golden-book-rag.
 # `web` (Next) is the app the internet hits; `api` + `db` are accessories.
 # Full runbook: docs/deploy-hetzner-kamal.md. Replace every <…> placeholder.
+#
+# SERVER_IP is kept OUT of this committed file: it lives in .kamal/secrets (dotenv,
+# gitignored) and is read here via ERB. Verify it resolves with `kamal config`.
 service: golden-book-rag
 
 # PRIMARY app image = the Next.js frontend. No registry host here — Kamal prepends
@@ -9,14 +12,14 @@ image: <your-github-username>/golden-book-rag-web
 
 servers:
   web:
-    - <SERVER_IP>          # the Hetzner box
+    - <%= ENV["SERVER_IP"] %>   # the Hetzner box — value from .kamal/secrets
 
 ssh:
   user: deploy             # the non-root user created in Phase 2
 
 # kamal-proxy owns 80/443 and issues a real Let's Encrypt cert for `host`.
 proxy:
-  host: books.example.com  # your domain (must match the DNS A record)
+  host: books.polunwu.com  # your domain (must match the DNS A record)
   app_port: 3000           # the port `web` (Next) listens on
   ssl: true                # automatic Let's Encrypt (needs 443 open + grey-cloud DNS)
   healthcheck:
@@ -46,7 +49,7 @@ env:
 accessories:
   db:
     image: pgvector/pgvector:pg17
-    host: <SERVER_IP>
+    host: <%= ENV["SERVER_IP"] %>
     env:
       clear:
         POSTGRES_USER: bookrag
@@ -59,7 +62,7 @@ accessories:
   api:
     # Accessories don't build — you build + push this image yourself (Phase 7 of the runbook).
     image: ghcr.io/<your-github-username>/golden-book-rag-api:latest
-    host: <SERVER_IP>
+    host: <%= ENV["SERVER_IP"] %>
     env:
       clear:
         UPLOAD_DIR: /data/uploads

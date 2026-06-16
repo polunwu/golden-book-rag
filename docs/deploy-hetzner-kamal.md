@@ -225,7 +225,7 @@ image: <your-github-username>/golden-book-rag-web
 
 servers:
   web:
-    - <SERVER_IP>          # the Hetzner box
+    - <%= ENV["SERVER_IP"] %>   # the Hetzner box — value read from .kamal/secrets (see below)
 
 ssh:
   user: deploy             # the non-root user from Phase 2
@@ -262,7 +262,7 @@ env:
 accessories:
   db:
     image: pgvector/pgvector:pg17
-    host: <SERVER_IP>
+    host: <%= ENV["SERVER_IP"] %>
     env:
       clear:
         POSTGRES_USER: bookrag
@@ -275,7 +275,7 @@ accessories:
   api:
     # Accessories don't build — you build + push this image yourself (Phase 7).
     image: ghcr.io/<your-github-username>/golden-book-rag-api:latest
-    host: <SERVER_IP>
+    host: <%= ENV["SERVER_IP"] %>
     env:
       clear:
         UPLOAD_DIR: /data/uploads
@@ -292,6 +292,13 @@ inside it: Kamal does **not** interpolate secrets into clear values, so we assem
 whole connection string (password included) in `.kamal/secrets`, where it stays out of
 git.
 
+Why the three `host:` lines read `<%= ENV["SERVER_IP"] %>` instead of a literal IP:
+`config/deploy.yml` is **committed** and ERB-evaluated, while `.kamal/secrets` is loaded
+into the environment via dotenv. Putting `SERVER_IP` there keeps the server's address
+out of the public repo. Confirm it resolves before deploying with `kamal config` (run
+locally — it renders the config without touching the server). If `kamal config` errors
+with an empty host, `SERVER_IP` isn't set in `.kamal/secrets`.
+
 ### 5b. `.kamal/secrets` (NOT committed — holds real values)
 
 First make sure it can never be committed:
@@ -307,6 +314,7 @@ with it):
 
 ```bash
 # .kamal/secrets — real values, gitignored. Do not share.
+SERVER_IP=your_hetzner_ipv4        # read by deploy.yml via ERB; keeps the IP out of git
 KAMAL_REGISTRY_PASSWORD=ghp_your_github_PAT_here
 POSTGRES_PASSWORD=paste_output_of_openssl_rand_hex_32
 GEMINI_API_KEY=your_gemini_api_key
