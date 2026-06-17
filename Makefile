@@ -1,5 +1,5 @@
 .PHONY: db-up db-down db-logs db-shell db-schema db-reset db-status db-migrate db-migrate-down api-dev test web full-up full-down full-logs full-ps \
-	deploy deploy-api deploy-rollback kamal-config logs-web logs-api logs-proxy
+	deploy deploy-api deploy-rollback kamal-config logs-web logs-api logs-proxy buildkit-stop
 
 # Full containerized stack (db + api + web) — pre-deploy rehearsal.
 FULL := docker compose -f docker-compose.full.yml
@@ -83,6 +83,11 @@ deploy-api:
 # Roll the web app back to the previous image version.
 deploy-rollback:
 	$(KAMAL) rollback
+
+# Stop the buildx/BuildKit builder container after you're done deploying — frees ~170MB RAM.
+# Kamal restarts it automatically on the next deploy/deploy-api build.
+buildkit-stop:
+	-docker buildx stop kamal-local-docker-container
 
 # Render the deploy config locally (no server contact) — quickest drift/secret check.
 kamal-config:
