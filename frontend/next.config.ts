@@ -8,6 +8,12 @@ import type { NextConfig } from "next";
 const BACKEND = process.env.BACKEND_ORIGIN ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = {
+  // Next buffers the proxied request body with a 10MB default cap; a larger PDF gets
+  // truncated mid-stream, so the rewrite to the backend dies with ECONNRESET (a 500
+  // the backend never even sees). Lift it to match the app's upload ceiling.
+  experimental: {
+    proxyClientMaxBodySize: "110mb",
+  },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${BACKEND}/:path*` }];
   },
