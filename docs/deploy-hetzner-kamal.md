@@ -250,6 +250,12 @@ registry:
 
 builder:
   arch: arm64                        # native build: M-series Mac (arm64) -> CAX11 (arm64). Use amd64 for an x86 server.
+  # The "app" is the Next.js frontend, which lives in frontend/ — NOT the repo root.
+  # Kamal's defaults (context ".", dockerfile "Dockerfile") would build the repo-root
+  # Dockerfile, which is the *API* image: the web container then runs alembic, has no
+  # DATABASE_URL, and fails its healthcheck. Point both at frontend/ explicitly.
+  context: ./frontend
+  dockerfile: frontend/Dockerfile
   args:
     # Next bakes the /api/* rewrite target at BUILD time -> point it at the api accessory.
     BACKEND_ORIGIN: http://golden-book-rag-api:8000
@@ -427,12 +433,18 @@ that bites, keep the record grey (DNS only).
 
 ## Day-2 operations
 
+> ⚠️ Every bare `kamal …` below needs `SERVER_IP` exported first (this Kamal version
+> doesn't auto-load `.kamal/secrets`): `export SERVER_IP=$(awk -F= '/^SERVER_IP=/{print $2}' .kamal/secrets)`.
+> The **`make` targets** in the right column bake that in — prefer them.
+
 | Task | Command(s) |
 |---|---|
-| Deploy a **frontend** change | `kamal deploy` (builds web on your laptop, **zero-downtime** swap) |
-| Deploy a **backend** change | Phase 7 `docker buildx … --push`, **then** `kamal accessory reboot api` |
+| Deploy a **frontend** change | `make deploy` (= `kamal deploy`; builds web on your laptop, **zero-downtime** swap) |
+| Deploy a **backend** change | `make deploy-api` (= Phase 7 `docker buildx … --push` **then** `kamal accessory reboot api`) |
 | Re-deploy web only (skip registry login/bootstrap) | `kamal redeploy` |
-| Tail logs | `kamal app logs -f` · `kamal accessory logs api -f` · `kamal proxy logs` |
+| Tail logs | `make logs-web` · `make logs-api` · `make logs-proxy` |
+| Render config / drift check | `make kamal-config` |
+| Roll the web app back | `make deploy-rollback` (= `kamal rollback`) |
 | Open a DB shell | `kamal accessory exec db -- psql -U bookrag -d bookrag` |
 | Run any one-off in the db | `kamal accessory exec db -- pg_isready -U bookrag` |
 | Roll back the web app | `kamal rollback` (reverts to the previous image version) |
@@ -469,6 +481,15 @@ kamal-proxy re-issues TLS certs automatically, so they're not critical to back u
 - **`exec format error` in the api or web logs.** The image was built for the wrong CPU.
   Make the build match the server: for CAX11, `--platform linux/arm64` (api) and
   `builder: arch: arm64` (web); for an x86 server, the `amd64` variants.
+- **`kamal setup`/`deploy` fails: the web container runs alembic / logs `DATABASE_URL
+  missing` / "target failed to become healthy".** The app image was built from the
+  repo-root Dockerfile (the API), not the frontend. Confirm `deploy.yml`'s `builder` has
+  `context: ./frontend` and `dockerfile: frontend/Dockerfile`, then `kamal deploy`.
+- **`kamal config` errors `servers/web/0: should be a string or a hash`.** ERB read an
+  empty `SERVER_IP` — this Kamal version does **not** auto-load `.kamal/secrets` into the
+  environment for `ENV[...]` interpolation. Export it for each invocation, e.g.
+  `export SERVER_IP=$(awk -F= '/^SERVER_IP=/{print $2}' .kamal/secrets)` before any
+  `kamal` command (or `set -a; source .kamal/secrets; set +a`).
 - **Registry push/pull denied.** Re-run `docker login ghcr.io` (Phase 3b) and confirm
   `KAMAL_REGISTRY_PASSWORD` in `.kamal/secrets` is your PAT with `write:packages`.
 - **`kamal` commands hang or refuse SSH.** Test `ssh deploy@<SERVER_IP>` by hand; the

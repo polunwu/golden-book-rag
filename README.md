@@ -46,3 +46,22 @@ curl -s http://localhost:3000/api/books -w "\n"   # frontend -> backend proxy
 
 > Quick reference: `docker-compose.yml` = dev (DB only, auto-loaded by `make`);
 > `docker-compose.full.yml` = full stack (driven by the `make full-*` targets).
+
+## Deploy (Hetzner + Kamal)
+
+Production runs on a Hetzner VPS via **Kamal 2**: `web` (Next.js) is the app behind
+kamal-proxy (auto-TLS); `api` (FastAPI) and `db` (pgvector) are accessories. Full
+first-time runbook — server setup, secrets, DNS — is in
+[`docs/deploy-hetzner-kamal.md`](docs/deploy-hetzner-kamal.md). Config lives in
+`config/deploy.yml`; secrets in `.kamal/secrets` (gitignored).
+
+Day-2, once it's live (the `make` targets auto-export `SERVER_IP`, which Kamal needs):
+
+```bash
+make deploy          # ship a FRONTEND change — zero-downtime web swap
+make deploy-api      # ship a BACKEND change — buildx push (amd64) + reboot api
+make logs-web        # tail web / api / proxy: also logs-api, logs-proxy
+make kamal-config    # render config locally (drift / secret check)
+make deploy-rollback # revert web to the previous image
+```
+

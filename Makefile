@@ -1,4 +1,5 @@
-.PHONY: db-up db-down db-logs db-shell db-schema db-reset db-status db-migrate db-migrate-down api-dev test web full-up full-down full-logs full-ps
+.PHONY: db-up db-down db-logs db-shell db-schema db-reset db-status db-migrate db-migrate-down api-dev test web full-up full-down full-logs full-ps \
+	deploy deploy-api deploy-rollback kamal-config logs-web logs-api logs-proxy
 
 # Full containerized stack (db + api + web) — pre-deploy rehearsal.
 FULL := docker compose -f docker-compose.full.yml
@@ -61,3 +62,37 @@ full-logs:
 
 full-ps:
 	$(FULL) ps
+
+# --- Kamal deploy (Hetzner). See docs/deploy-hetzner-kamal.md ---
+# This Kamal version does NOT auto-load .kamal/secrets into the env, so SERVER_IP
+# (read by deploy.yml via ERB) must be exported for every command. KAMAL bakes that
+# in — use it instead of bare `kamal` so you never hit the empty-host config error.
+KAMAL := SERVER_IP=$$(awk -F= '/^SERVER_IP=/{print $$2}' .kamal/secrets) kamal
+API_IMAGE := ghcr.io/polunwu/golden-book-rag-api:latest
+
+# Deploy a FRONTEND change: build web on this laptop, zero-downtime swap.
+deploy:
+	$(KAMAL) deploy
+
+# Deploy a BACKEND change: rebuild+push the api image (amd64), then reboot the accessory.
+# The api is a Kamal accessory, so it doesn't build via `kamal deploy` — hence the buildx.
+deploy-api:
+	docker buildx build --platform linux/amd64 -t $(API_IMAGE) --push .
+	$(KAMAL) accessory reboot api
+
+# Roll the web app back to the previous image version.
+deploy-rollback:
+	$(KAMAL) rollback
+
+# Render the deploy config locally (no server contact) — quickest drift/secret check.
+kamal-config:
+	$(KAMAL) config
+
+logs-web:
+	$(KAMAL) app logs -f
+
+logs-api:
+	$(KAMAL) accessory logs api -f
+
+logs-proxy:
+	$(KAMAL) proxy logs -f
