@@ -8,7 +8,7 @@ service: golden-book-rag
 
 # PRIMARY app image = the Next.js frontend. No registry host here — Kamal prepends
 # `registry.server` below, giving ghcr.io/<user>/golden-book-rag-web.
-image: <your-github-username>/golden-book-rag-web
+image: polunwu/golden-book-rag-web
 
 servers:
   web:
@@ -31,12 +31,14 @@ proxy:
 
 registry:
   server: ghcr.io
-  username: <your-github-username>
+  username: polunwu
   password:
     - KAMAL_REGISTRY_PASSWORD        # value comes from .kamal/secrets (your PAT)
 
 builder:
-  arch: arm64                        # native build: M-series Mac (arm64) -> CAX11 (arm64). Use amd64 for an x86 server.
+  arch: amd64                        # x86 server (CX23). Built via QEMU emulation on an arm64 Mac (slower first build).
+  context: ./frontend                # the app IS the Next.js frontend — build from frontend/, not repo root (root Dockerfile is the API).
+  dockerfile: frontend/Dockerfile    # default "Dockerfile" resolves to the repo-root API one; point at frontend explicitly.
   args:
     # Next bakes the /api/* rewrite target at BUILD time -> point it at the api accessory.
     BACKEND_ORIGIN: http://golden-book-rag-api:8000
@@ -61,7 +63,7 @@ accessories:
 
   api:
     # Accessories don't build — you build + push this image yourself (Phase 7 of the runbook).
-    image: ghcr.io/<your-github-username>/golden-book-rag-api:latest
+    image: ghcr.io/polunwu/golden-book-rag-api:latest
     host: <%= ENV["SERVER_IP"] %>
     env:
       clear:
