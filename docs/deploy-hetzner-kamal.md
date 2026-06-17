@@ -481,6 +481,15 @@ kamal-proxy re-issues TLS certs automatically, so they're not critical to back u
 - **`exec format error` in the api or web logs.** The image was built for the wrong CPU.
   Make the build match the server: for CAX11, `--platform linux/arm64` (api) and
   `builder: arch: arm64` (web); for an x86 server, the `amd64` variants.
+- **Uploading a larger PDF returns 500, but `kamal accessory logs api` shows no
+  `POST /books/upload` at all.** The 500 comes from the **web (Next.js) proxy**, not the
+  backend — `kamal app logs` shows `Request body exceeded 10MB for /api/books/upload`
+  then `Failed to proxy … socket hang up (ECONNRESET)`. Next buffers the proxied request
+  body with a **10MB default cap** and truncates past it, so the rewrite to the api dies
+  mid-stream. Fix in `frontend/next.config.ts`: set `experimental.proxyClientMaxBodySize`
+  (e.g. `"110mb"`, matching `proxy.buffering.max_request_body` and the app's
+  `MAX_UPLOAD_MB`), then `kamal deploy`. Debugging rule of thumb: walk the request path
+  **proxy → web → api**; the layer where the status code first goes bad owns the failure.
 - **`kamal setup`/`deploy` fails: the web container runs alembic / logs `DATABASE_URL
   missing` / "target failed to become healthy".** The app image was built from the
   repo-root Dockerfile (the API), not the frontend. Confirm `deploy.yml`'s `builder` has
