@@ -51,7 +51,13 @@ ufw --force enable
 
 Result: `ufw status` = active, allowing OpenSSH / 80 / 443 (v4 + v6).
 
-**Not done (optional follow-ups):** unattended-upgrades, fail2ban, an SSH key passphrase.
+**fail2ban:** installed and running — `fail2ban-client status` shows the `sshd` jail
+active (auto-bans IPs that brute-force SSH).
+
+**unattended-upgrades:** installed and enabled — `/etc/apt/apt.conf.d/20auto-upgrades`
+has both periodic keys set to `"1"`, so security updates install automatically.
+
+**Not done (optional follow-ups):** an SSH key passphrase.
 
 ## Deploy sequence (run from the laptop)
 
