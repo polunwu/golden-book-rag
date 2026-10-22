@@ -1,7 +1,8 @@
 # Frontend (Next.js 16). Multi-stage: install deps -> build -> slim runtime.
 
-# Node 22 (Next 16 needs Node >= 18.18; 22 is current LTS).
-FROM node:22-slim AS base
+# Node 24 Active LTS. Pinned to the exact patch so picking up a Node security
+# release is an explicit, reviewable bump rather than a side effect of build cache.
+FROM node:24.22.1-slim AS base
 WORKDIR /app
 
 # --- deps: install node_modules (cached on yarn.lock) ---

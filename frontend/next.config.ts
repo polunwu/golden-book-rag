@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-// Dev origin (D8/G1-A): the browser only ever talks to the Next origin; Next
+// Dev origin: the browser only ever talks to the Next origin; Next
 // rewrites /api/* to the backend, stripping the /api prefix (backend routes are
 // /books, not /api/books). No CORS, backend untouched. The same rewrite runs on
 // the Next server in prod (single origin). The backend target is env-overridable
@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
   // the backend never even sees). Lift it to match the app's upload ceiling.
   experimental: {
     proxyClientMaxBodySize: "110mb",
+  },
+  // The app never uses next/image, so turn the optimizer off: `/_next/image` is
+  // otherwise served by default and is a recurring source of RCE/SSRF advisories.
+  images: {
+    unoptimized: true,
   },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${BACKEND}/:path*` }];
